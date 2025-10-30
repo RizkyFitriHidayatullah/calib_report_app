@@ -71,19 +71,18 @@ def init_db():
         created_at TEXT
     )""")
 
-    # Insert default users only if username belum ada
+    # Default users, pakai INSERT OR IGNORE untuk aman
     default_users = [
         ("admin","admin123","Admin","admin"),
         ("manager","manager123","Manager","manager"),
         ("operator","operator123","Operator","operator")
     ]
     for username,password,fullname,role in default_users:
-        c.execute("SELECT id FROM users WHERE username=?",(username,))
-        if not c.fetchone():  # hanya insert jika tidak ada
-            c.execute("""
-                INSERT INTO users (username,password_hash,fullname,role,created_at)
-                VALUES (?,?,?,?,?)
-            """, (username, hashlib.sha256((password+"salt2025").encode()).hexdigest(), fullname, role, datetime.utcnow().isoformat()))
+        c.execute("""
+            INSERT OR IGNORE INTO users (username,password_hash,fullname,role,created_at)
+            VALUES (?,?,?,?,?)
+        """, (username, hashlib.sha256((password+"salt2025").encode()).hexdigest(), fullname, role, datetime.utcnow().isoformat()))
+    
     conn.commit()
     conn.close()
 
@@ -170,7 +169,6 @@ def main():
         st.session_state['user']=None
 
     st.sidebar.title("Login")
-    # fetch all usernames
     conn=get_conn()
     usernames=pd.read_sql("SELECT username FROM users",conn)['username'].tolist()
     conn.close()
@@ -198,7 +196,7 @@ def main():
             page=st.sidebar.radio("Menu",["Checklist","Calibration","Admin Dashboard"])
         elif user['role']=='manager':
             page=st.sidebar.radio("Menu",["Checklist","Calibration"])
-        else:  # operator
+        else:
             page=st.sidebar.radio("Menu",["Checklist"])
 
         # -------- Checklist --------
@@ -217,7 +215,7 @@ def main():
                     if submitted:
                         save_checklist(user['id'],str(date),machine,shift,item,condition,note)
                         st.success("Checklist tersimpan.")
-            # view checklist
+
             st.subheader("Daftar Checklist")
             df=get_checklists(user_id=None if user['role'] in ['admin','manager'] else user['id'])
             if not df.empty:
@@ -244,7 +242,7 @@ def main():
                     if submit:
                         save_calibration(user['id'],str(date),instrument,procedure,result,remarks)
                         st.success("Calibration report tersimpan.")
-            # view
+
             st.subheader("Daftar Calibration")
             df=get_calibrations(user_id=None if user['role'] in ['admin','manager'] else None)
             if not df.empty:
