@@ -4,7 +4,6 @@ from datetime import datetime
 from fpdf import FPDF
 import hashlib
 import pandas as pd
-import os
 
 # ---------------------------
 # CONFIG
@@ -27,24 +26,11 @@ def inject_bootstrap():
     """, unsafe_allow_html=True)
 
 # ---------------------------
-# UPLOAD DATABASE LAMA (STREAMLIT CLOUD)
-# ---------------------------
-if not os.path.exists(DB_PATH):
-    st.warning("Database tidak ditemukan. Silakan upload database lama (.db) jika ada.")
-    uploaded_file = st.file_uploader("Upload DB Lama (.db)", type="db")
-    if uploaded_file:
-        with open(DB_PATH, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        st.success("Database berhasil diupload.")
-    else:
-        st.info("Database baru akan dibuat otomatis.")
-        open(DB_PATH,"w").close()
-
-# ---------------------------
-# DATABASE FUNCTIONS
+# DB
 # ---------------------------
 def get_conn():
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    return conn
 
 def init_db():
     conn = get_conn()
@@ -84,17 +70,20 @@ def init_db():
         remarks TEXT,
         created_at TEXT
     )""")
-    # default users
+
+    # Insert default users only if username belum ada
     default_users = [
         ("admin","admin123","Admin","admin"),
         ("manager","manager123","Manager","manager"),
         ("operator","operator123","Operator","operator")
     ]
     for username,password,fullname,role in default_users:
-        c.execute("""
-            INSERT OR IGNORE INTO users (username,password_hash,fullname,role,created_at)
-            VALUES (?,?,?,?,?)
-        """, (username, hashlib.sha256((password+"salt2025").encode()).hexdigest(), fullname, role, datetime.utcnow().isoformat()))
+        c.execute("SELECT id FROM users WHERE username=?",(username,))
+        if not c.fetchone():  # hanya insert jika tidak ada
+            c.execute("""
+                INSERT INTO users (username,password_hash,fullname,role,created_at)
+                VALUES (?,?,?,?,?)
+            """, (username, hashlib.sha256((password+"salt2025").encode()).hexdigest(), fullname, role, datetime.utcnow().isoformat()))
     conn.commit()
     conn.close()
 
@@ -170,7 +159,7 @@ def generate_pdf(record,title):
     return pdf.output(dest='S').encode('latin-1')
 
 # ---------------------------
-# MAIN UI
+# UI
 # ---------------------------
 def main():
     inject_bootstrap()
@@ -181,6 +170,7 @@ def main():
         st.session_state['user']=None
 
     st.sidebar.title("Login")
+    # fetch all usernames
     conn=get_conn()
     usernames=pd.read_sql("SELECT username FROM users",conn)['username'].tolist()
     conn.close()
@@ -203,11 +193,12 @@ def main():
         user=st.session_state['user']
         st.sidebar.success(f"Hi, {user.get('fullname') or user.get('username')} ({user['role']})")
 
+        # role-based menu
         if user['role']=='admin':
             page=st.sidebar.radio("Menu",["Checklist","Calibration","Admin Dashboard"])
         elif user['role']=='manager':
             page=st.sidebar.radio("Menu",["Checklist","Calibration"])
-        else:
+        else:  # operator
             page=st.sidebar.radio("Menu",["Checklist"])
 
         # -------- Checklist --------
@@ -226,7 +217,7 @@ def main():
                     if submitted:
                         save_checklist(user['id'],str(date),machine,shift,item,condition,note)
                         st.success("Checklist tersimpan.")
-
+            # view checklist
             st.subheader("Daftar Checklist")
             df=get_checklists(user_id=None if user['role'] in ['admin','manager'] else user['id'])
             if not df.empty:
@@ -242,7 +233,7 @@ def main():
         # -------- Calibration --------
         if page=="Calibration":
             st.header("Calibration Report")
-            if user['role']=='admin':
+            if user['role']=='admin':  # only admin can input
                 with st.form("cal_form",clear_on_submit=True):
                     date=st.date_input("Tanggal Kalibrasi",value=datetime.today(),key="cal_date")
                     instrument=st.selectbox("Instrument",["Multimeter","Pressure Gauge","Thermometer","Flow Meter","Other"])
@@ -253,7 +244,7 @@ def main():
                     if submit:
                         save_calibration(user['id'],str(date),instrument,procedure,result,remarks)
                         st.success("Calibration report tersimpan.")
-
+            # view
             st.subheader("Daftar Calibration")
             df=get_calibrations(user_id=None if user['role'] in ['admin','manager'] else None)
             if not df.empty:
