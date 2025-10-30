@@ -4,11 +4,12 @@ from datetime import datetime
 from fpdf import FPDF
 import hashlib
 import pandas as pd
+import os
 
 # ---------------------------
 # CONFIG
 # ---------------------------
-DB_PATH = "maintenance_app.db"
+DB_PATH = os.path.join(os.getcwd(), "maintenance_app.db")
 st.set_page_config(page_title="Maintenance & Calibration System", layout="wide")
 
 # ---------------------------
@@ -71,7 +72,7 @@ def init_db():
         created_at TEXT
     )""")
 
-    # Default users, pakai INSERT OR IGNORE untuk aman
+    # Default users
     default_users = [
         ("admin","admin123","Admin","admin"),
         ("manager","manager123","Manager","manager"),
