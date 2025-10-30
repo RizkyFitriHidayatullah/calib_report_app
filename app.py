@@ -12,6 +12,19 @@ import os
 DB_PATH = os.path.join(os.getcwd(), "maintenance_app.db")
 st.set_page_config(page_title="Maintenance & Calibration System", layout="wide")
 
+# Hide Streamlit Cloud GitHub Link + Footer
+hide_streamlit_style = """
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+.stAppDeployButton {display: none;}
+.css-15zrgzn {display: none;}
+a[target="_blank"] {display:none !important;}
+</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # ---------------------------
 # UTIL: BOOTSTRAP
 # ---------------------------
@@ -36,7 +49,6 @@ def get_conn():
 def init_db():
     conn = get_conn()
     c = conn.cursor()
-    # Users table
     c.execute("""
     CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +58,6 @@ def init_db():
         role TEXT,
         created_at TEXT
     )""")
-    # Checklist table
     c.execute("""
     CREATE TABLE IF NOT EXISTS checklist(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +70,6 @@ def init_db():
         note TEXT,
         created_at TEXT
     )""")
-    # Calibration table
     c.execute("""
     CREATE TABLE IF NOT EXISTS calibration(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +82,6 @@ def init_db():
         created_at TEXT
     )""")
 
-    # Default users
     default_users = [
         ("admin","admin123","Admin","admin"),
         ("manager","manager123","Manager","manager"),
@@ -192,7 +201,6 @@ def main():
         user=st.session_state['user']
         st.sidebar.success(f"Hi, {user.get('fullname') or user.get('username')} ({user['role']})")
 
-        # role-based menu
         if user['role']=='admin':
             page=st.sidebar.radio("Menu",["Checklist","Calibration","Admin Dashboard"])
         elif user['role']=='manager':
@@ -200,7 +208,6 @@ def main():
         else:
             page=st.sidebar.radio("Menu",["Checklist"])
 
-        # -------- Checklist --------
         if page=="Checklist":
             st.header("Checklist Maintenance Harian")
             if user['role'] in ['admin','operator']:
@@ -229,10 +236,9 @@ def main():
             else:
                 st.info("Belum ada data.")
 
-        # -------- Calibration --------
         if page=="Calibration":
             st.header("Calibration Report")
-            if user['role']=='admin':  # only admin can input
+            if user['role']=='admin':
                 with st.form("cal_form",clear_on_submit=True):
                     date=st.date_input("Tanggal Kalibrasi",value=datetime.today(),key="cal_date")
                     instrument=st.selectbox("Instrument",["Multimeter","Pressure Gauge","Thermometer","Flow Meter","Other"])
@@ -256,7 +262,6 @@ def main():
             else:
                 st.info("Belum ada data.")
 
-        # -------- Admin Dashboard --------
         if page=="Admin Dashboard":
             st.header("Admin Dashboard")
             st.subheader("Checklist Semua Pengguna")
@@ -264,7 +269,6 @@ def main():
             st.subheader("Calibration Semua Pengguna")
             st.dataframe(get_calibrations())
 
-        # Logout
         if st.sidebar.button("Logout"):
             st.session_state['auth']=False
             st.session_state['user']=None
