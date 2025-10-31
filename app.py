@@ -223,18 +223,21 @@ def main():
         conn.close()
 
         st.subheader("🔐 Login")
-        selected_user = st.selectbox("Pilih Username", usernames)
-        password = st.text_input("Password", type="password")
-
-        if st.button("Login"):
-            ok, user = verify_user(selected_user, password)
-            if ok:
-                st.session_state['auth'] = True
-                st.session_state['user'] = user
-                st.success(f"Login berhasil sebagai {user['role'].capitalize()}")
-                st.rerun()
-            else:
-                st.error("Login gagal. Password salah.")
+        
+        with st.form("login_form"):
+            selected_user = st.selectbox("Pilih Username", usernames)
+            password = st.text_input("Password", type="password")
+            submit = st.form_submit_button("Login", use_container_width=True)
+            
+            if submit:
+                ok, user = verify_user(selected_user, password)
+                if ok:
+                    st.session_state['auth'] = True
+                    st.session_state['user'] = user
+                    st.success(f"Login berhasil sebagai {user['role'].capitalize()}")
+                    st.rerun()
+                else:
+                    st.error("Login gagal. Password salah.")
         st.stop()
 
     # MENU
