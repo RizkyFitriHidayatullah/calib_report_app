@@ -12,6 +12,21 @@ DB_PATH = "maintenance_app.db"
 st.set_page_config(page_title="Maintenance & Calibration System", layout="wide")
 
 # ---------------------------
+# HILANGKAN TOOLBAR STREAMLIT
+# ---------------------------
+hide_streamlit_style = """
+    <style>
+        /* Hilangkan menu kanan atas (Share, Settings, dll) */
+        [data-testid="stToolbar"] {visibility: hidden !important;}
+        [data-testid="stDecoration"] {visibility: hidden !important;}
+        [data-testid="stStatusWidget"] {visibility: hidden !important;}
+        #MainMenu {visibility: hidden !important;}
+        footer {visibility: hidden !important;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+# ---------------------------
 # UTIL: BOOTSTRAP
 # ---------------------------
 def inject_bootstrap():
@@ -26,7 +41,7 @@ def inject_bootstrap():
     """, unsafe_allow_html=True)
 
 # ---------------------------
-# DB
+# DB FUNCTIONS
 # ---------------------------
 def get_conn():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -70,7 +85,7 @@ def init_db():
         remarks TEXT,
         created_at TEXT
     )""")
-    # insert default users if not exist
+    # Default users
     default_users = [
         ("admin","admin123","Admin","admin"),
         ("manager","manager123","Manager","manager"),
@@ -81,7 +96,7 @@ def init_db():
             c.execute("INSERT INTO users (username,password_hash,fullname,role,created_at) VALUES (?,?,?,?,?)",
                       (username, hashlib.sha256((password+"salt2025").encode()).hexdigest(), fullname, role, datetime.utcnow().isoformat()))
         except sqlite3.IntegrityError:
-            pass  # already exists
+            pass
     conn.commit()
     conn.close()
 
@@ -141,7 +156,7 @@ def get_calibrations(user_id=None):
     return pd.DataFrame(rows,columns=cols)
 
 # ---------------------------
-# PDF
+# PDF GENERATOR
 # ---------------------------
 def generate_pdf(record,title):
     pdf=FPDF()
@@ -157,7 +172,7 @@ def generate_pdf(record,title):
     return pdf.output(dest='S').encode('latin-1')
 
 # ---------------------------
-# UI
+# MAIN APP
 # ---------------------------
 def main():
     inject_bootstrap()
@@ -168,7 +183,6 @@ def main():
         st.session_state['user']=None
 
     st.sidebar.title("Login")
-    # fetch all usernames
     conn=get_conn()
     usernames=pd.read_sql("SELECT username FROM users",conn)['username'].tolist()
     conn.close()
@@ -191,15 +205,13 @@ def main():
         user=st.session_state['user']
         st.sidebar.success(f"Hi, {user.get('fullname') or user.get('username')} ({user['role']})")
 
-        # role-based menu
         if user['role']=='admin':
             page=st.sidebar.radio("Menu",["Checklist","Calibration","Admin Dashboard"])
         elif user['role']=='manager':
             page=st.sidebar.radio("Menu",["Checklist","Calibration"])
-        else:  # operator
+        else:
             page=st.sidebar.radio("Menu",["Checklist"])
 
-        # -------- Checklist --------
         if page=="Checklist":
             st.header("Checklist Maintenance Harian")
             if user['role'] in ['admin','operator']:
@@ -216,16 +228,15 @@ def main():
                         save_checklist(user['id'],str(date),machine,shift,item,condition,note)
                         st.success("Checklist tersimpan.")
 
-            # view checklist
             st.subheader("Daftar Checklist")
             if user['role'] in ['admin','manager']:
-                df=get_checklists(user_id=None)  # lihat semua data
+                df=get_checklists(user_id=None)
             else:
-                df=get_checklists(user_id=user['id'])  # operator hanya data sendiri
+                df=get_checklists(user_id=user['id'])
 
             if not df.empty:
                 st.dataframe(df[['id','date','machine','shift','item','condition','note']])
-                sel=st.selectbox("Pilih ID untuk download PDF (kosong=tidak ada)",[""]+df['id'].astype(str).tolist())
+                sel=st.selectbox("Pilih ID untuk download PDF",[""]+df['id'].astype(str).tolist())
                 if sel:
                     rec=df[df['id']==int(sel)].iloc[0].to_dict()
                     pdf_bytes=generate_pdf(rec,"Checklist Maintenance")
@@ -233,10 +244,9 @@ def main():
             else:
                 st.info("Belum ada data.")
 
-        # -------- Calibration --------
         if page=="Calibration":
             st.header("Calibration Report")
-            if user['role']=='admin':  # hanya admin bisa input
+            if user['role']=='admin':
                 with st.form("cal_form",clear_on_submit=True):
                     date=st.date_input("Tanggal Kalibrasi",value=datetime.today(),key="cal_date")
                     instrument=st.selectbox("Instrument",["Multimeter","Pressure Gauge","Thermometer","Flow Meter","Other"])
@@ -248,16 +258,15 @@ def main():
                         save_calibration(user['id'],str(date),instrument,procedure,result,remarks)
                         st.success("Calibration report tersimpan.")
 
-            # view calibration
             st.subheader("Daftar Calibration")
             if user['role'] in ['admin','manager']:
-                df=get_calibrations(user_id=None)  # lihat semua data
+                df=get_calibrations(user_id=None)
             else:
-                df=get_calibrations(user_id=user['id'])  # operator hanya data sendiri
+                df=get_calibrations(user_id=user['id'])
 
             if not df.empty:
                 st.dataframe(df[['id','date','instrument','procedure','result','remarks']])
-                sel=st.selectbox("Pilih ID untuk download PDF (kosong=tidak ada)",[""]+df['id'].astype(str).tolist(),key="cal_sel")
+                sel=st.selectbox("Pilih ID untuk download PDF",[""]+df['id'].astype(str).tolist(),key="cal_sel")
                 if sel:
                     rec=df[df['id']==int(sel)].iloc[0].to_dict()
                     pdf_bytes=generate_pdf(rec,"Calibration Report")
@@ -265,7 +274,6 @@ def main():
             else:
                 st.info("Belum ada data.")
 
-        # -------- Admin Dashboard --------
         if page=="Admin Dashboard":
             st.header("Admin Dashboard")
             st.subheader("Checklist Semua Pengguna")
@@ -273,7 +281,6 @@ def main():
             st.subheader("Calibration Semua Pengguna")
             st.dataframe(get_calibrations())
 
-        # Logout
         if st.sidebar.button("Logout"):
             st.session_state['auth']=False
             st.session_state['user']=None
@@ -283,5 +290,3 @@ def main():
 
 if __name__=="__main__":
     main()
-
-
