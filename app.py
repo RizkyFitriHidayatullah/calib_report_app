@@ -120,32 +120,39 @@ def save_checklist(user_id, date, machine, sub_area, shift, item, condition, not
     try:
         conn = get_conn()
         c = conn.cursor()
-        # Format date to string
-        date_str = date.strftime("%Y-%m-%d")
+        date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)
+        
+        # Debug print
+        print(f"Saving: user_id={user_id}, date={date_str}, machine={machine}, sub_area={sub_area}, shift={shift}, item={item}, condition={condition}, note={note}")
+        
         c.execute("""
             INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (user_id, date_str, machine, sub_area, shift, item, condition, note, datetime.utcnow().isoformat()))
         conn.commit()
         conn.close()
-        st.info(f"✅ Data disimpan: User ID={user_id}, Date={date_str}")
+        st.success(f"✅ Data berhasil disimpan!")
+        return True
     except Exception as e:
         st.error(f"❌ Error menyimpan checklist: {e}")
+        return False
 
 def save_calibration(user_id, date, instrument, procedure, result, remarks):
     try:
         conn = get_conn()
         c = conn.cursor()
-        date_str = date.strftime("%Y-%m-%d")
+        date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)
         c.execute("""
             INSERT INTO calibration (user_id, date, instrument, procedure, result, remarks, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (user_id, date_str, instrument, procedure, result, remarks, datetime.utcnow().isoformat()))
         conn.commit()
         conn.close()
-        st.info(f"✅ Data disimpan: User ID={user_id}, Date={date_str}")
+        st.success(f"✅ Data berhasil disimpan!")
+        return True
     except Exception as e:
         st.error(f"❌ Error menyimpan calibration: {e}")
+        return False
 
 def get_checklists(user_id=None):
     conn = get_conn()
@@ -157,7 +164,7 @@ def get_checklists(user_id=None):
     rows = c.fetchall()
     conn.close()
     cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "created_at"]
-    return pd.DataFrame(rows, columns=cols)
+    return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 def get_calibrations(user_id=None):
     conn = get_conn()
@@ -169,7 +176,7 @@ def get_calibrations(user_id=None):
     rows = c.fetchall()
     conn.close()
     cols = ["id", "user_id", "date", "instrument", "procedure", "result", "remarks", "created_at"]
-    return pd.DataFrame(rows, columns=cols)
+    return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 # ---------------------------
 # PDF GENERATOR
@@ -224,15 +231,17 @@ def main():
     # MENU
     user = st.session_state['user']
     st.success(f"Halo, {user['fullname']} ({user['role']})")
-    menu = st.radio("Pilih Menu", ["Checklist", "Calibration"] + (["Admin Dashboard"] if user['role'] == "admin" else []))
+    menu = st.radio("Pilih Menu", ["Checklist", "Calibration"] + (["Admin Dashboard"] if user['role'] == "admin" else []), horizontal=True)
 
     # CHECKLIST
     if menu == "Checklist":
         st.header("Checklist Maintenance Harian")
         if user['role'] in ['admin', 'operator']:
             with st.form("checklist_form", clear_on_submit=True):
-                col1, col2 = st.columns([2, 1])
+                col1, col2 = st.columns([3, 1])
+                
                 date = col1.date_input("Tanggal", value=datetime.today())
+                
                 machine = col1.selectbox("Machine / Area", ["Papper Machine 1", "Papper Machine 2", "Boiler", "WWTP", "Other"])
 
                 sub_area_options = {
@@ -242,22 +251,27 @@ def main():
                     "WWTP": ["Blower", "Screening", "Clarifier", "Sludge Pump", "Equalization Tank"],
                     "Other": ["Workshop", "Office", "Warehouse"]
                 }
-                sub_area = col1.selectbox("Sub Area", sub_area_options[machine])
+                sub_area = col1.selectbox("Sub Area", sub_area_options.get(machine, ["N/A"]))
 
                 shift = col2.selectbox("Shift", ["Pagi", "Siang", "Malam"])
-                item = st.selectbox("Item yang diperiksa", ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"])
-                condition = st.selectbox("Condition", ["Good", "Minor", "Bad"])
+                
+                item = col1.selectbox("Item yang diperiksa", ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"])
+                
+                condition = col1.selectbox("Condition", ["Good", "Minor", "Bad"])
+                
                 note = st.text_area("Keterangan / Temuan")
 
-                if st.form_submit_button("💾 Simpan Checklist"):
-                    save_checklist(user['id'], date, machine, sub_area, shift, item, condition, note)
-                    st.success("Checklist berhasil disimpan!")
-                    st.rerun()  # ⚡️ MEMAKSA HALAMAN DI-RELOAD ULANG → TABEL AKAN UPDATE OTOMATIS
+                if st.form_submit_button("💾 Simpan Checklist", use_container_width=True):
+                    if save_checklist(user['id'], date, machine, sub_area, shift, item, condition, note):
+                        st.rerun()
 
         st.subheader("📋 Daftar Checklist")
         df = get_checklists() if user['role'] in ['admin', 'manager'] else get_checklists(user_id=user['id'])
         if not df.empty:
-            st.dataframe(df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']])
+            # Display dengan column yang benar
+            display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']].copy()
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist())
             if sel:
                 rec = df[df['id'] == int(sel)].iloc[0].to_dict()
@@ -276,15 +290,15 @@ def main():
                 procedure = st.text_area("Prosedur Singkat")
                 result = st.selectbox("Hasil", ["Pass", "Fail", "Adjust"])
                 remarks = st.text_area("Catatan / Rekomendasi")
-                if st.form_submit_button("💾 Simpan Calibration Report"):
-                    save_calibration(user['id'], date, instrument, procedure, result, remarks)
-                    st.success("Calibration report berhasil disimpan!")
-                    st.rerun()  # ⚡️ MEMAKSA HALAMAN DI-RELOAD ULANG → TABEL AKAN UPDATE OTOMATIS
+                if st.form_submit_button("💾 Simpan Calibration Report", use_container_width=True):
+                    if save_calibration(user['id'], date, instrument, procedure, result, remarks):
+                        st.rerun()
 
         st.subheader("📋 Daftar Calibration")
         df = get_calibrations() if user['role'] in ['admin', 'manager'] else get_calibrations(user_id=user['id'])
         if not df.empty:
-            st.dataframe(df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks']])
+            display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks']].copy()
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist(), key="cal_sel")
             if sel:
                 rec = df[df['id'] == int(sel)].iloc[0].to_dict()
@@ -297,9 +311,18 @@ def main():
     elif menu == "Admin Dashboard":
         st.header("Admin Dashboard")
         st.subheader("Checklist Semua Pengguna")
-        st.dataframe(get_checklists())
+        df_check = get_checklists()
+        if not df_check.empty:
+            st.dataframe(df_check[['id', 'user_id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']], use_container_width=True)
+        else:
+            st.info("Belum ada data.")
+            
         st.subheader("Calibration Semua Pengguna")
-        st.dataframe(get_calibrations())
+        df_cal = get_calibrations()
+        if not df_cal.empty:
+            st.dataframe(df_cal, use_container_width=True)
+        else:
+            st.info("Belum ada data.")
 
     if st.button("🚪 Logout"):
         st.session_state['auth'] = False
