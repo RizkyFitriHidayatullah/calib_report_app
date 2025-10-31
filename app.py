@@ -117,24 +117,35 @@ def verify_user(username, password):
     return False, None
 
 def save_checklist(user_id, date, machine, sub_area, shift, item, condition, note):
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, str(date), machine, sub_area, shift, item, condition, note, datetime.utcnow().isoformat()))
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_conn()
+        c = conn.cursor()
+        # Format date to string
+        date_str = date.strftime("%Y-%m-%d")
+        c.execute("""
+            INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, date_str, machine, sub_area, shift, item, condition, note, datetime.utcnow().isoformat()))
+        conn.commit()
+        conn.close()
+        st.info(f"✅ Data disimpan: User ID={user_id}, Date={date_str}")
+    except Exception as e:
+        st.error(f"❌ Error menyimpan checklist: {e}")
 
 def save_calibration(user_id, date, instrument, procedure, result, remarks):
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO calibration (user_id, date, instrument, procedure, result, remarks, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, str(date), instrument, procedure, result, remarks, datetime.utcnow().isoformat()))
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_conn()
+        c = conn.cursor()
+        date_str = date.strftime("%Y-%m-%d")
+        c.execute("""
+            INSERT INTO calibration (user_id, date, instrument, procedure, result, remarks, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, date_str, instrument, procedure, result, remarks, datetime.utcnow().isoformat()))
+        conn.commit()
+        conn.close()
+        st.info(f"✅ Data disimpan: User ID={user_id}, Date={date_str}")
+    except Exception as e:
+        st.error(f"❌ Error menyimpan calibration: {e}")
 
 def get_checklists(user_id=None):
     conn = get_conn()
