@@ -205,41 +205,46 @@ def get_calibrations(user_id=None):
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 # ---------------------------
-# PDF GENERATOR (FIXED)
+# PDF GENERATOR (LANDSCAPE BEFORE–AFTER)
 # ---------------------------
 def generate_pdf(record, title):
-    pdf = FPDF()
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
+    pdf.set_font("Arial", "B", 16)
     pdf.cell(0, 10, title, ln=True, align="C")
     pdf.ln(5)
-    pdf.set_font("Arial", size=11)
 
-    # Cetak field teks
+    pdf.set_font("Arial", "", 12)
     for key, value in record.items():
         if key not in ["image_before", "image_after"]:
-            pdf.set_font("Arial", "B", 11)
             pdf.cell(45, 8, f"{key.capitalize()}:", 0)
-            pdf.set_font("Arial", size=11)
             pdf.multi_cell(0, 8, str(value))
     pdf.ln(5)
-    pdf.cell(0, 5, "---------------------------------------------", ln=True)
+    pdf.cell(0, 6, "----------------------------------------------------", ln=True)
 
-    # Tambahkan gambar jika ada
-    for img_field, label in [("image_before", "Before"), ("image_after", "After")]:
-        if record.get(img_field):
-            try:
-                img_data = record[img_field]
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-                    tmp.write(img_data)
-                    tmp.flush()
-                    pdf.add_page()
-                    pdf.set_font("Arial", "B", 12)
-                    pdf.cell(0, 10, f"Gambar {label}", ln=True, align="C")
-                    pdf.image(tmp.name, x=30, y=40, w=150)
-            except Exception as e:
-                pdf.add_page()
-                pdf.cell(0, 10, f"Gagal menambahkan gambar {label}: {e}", ln=True)
+    # tampilkan gambar before–after di halaman landscape berdampingan
+    if record.get("image_before") or record.get("image_after"):
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Before vs After", ln=True, align="C")
+
+        img_w, img_h = 120, 90  # kecil agar muat dua
+        y_pos = 40
+
+        if record.get("image_before"):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                tmp.write(record["image_before"])
+                tmp.flush()
+                pdf.image(tmp.name, x=20, y=y_pos, w=img_w, h=img_h)
+                pdf.text(x=65, y=y_pos + img_h + 8, txt="Before")
+
+        if record.get("image_after"):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                tmp.write(record["image_after"])
+                tmp.flush()
+                pdf.image(tmp.name, x=160, y=y_pos, w=img_w, h=img_h)
+                pdf.text(x=205, y=y_pos + img_h + 8, txt="After")
+
     return pdf.output(dest="S").encode("latin-1")
 
 # ---------------------------
@@ -281,7 +286,7 @@ def main():
     st.success(f"Halo, {user['fullname']} ({user['role']})")
     menu = st.radio("Pilih Menu", ["Checklist", "Calibration"] + (["Admin Dashboard"] if user['role'] == "admin" else []), horizontal=True)
 
-    # CHECKLIST
+    # === Checklist ===
     if menu == "Checklist":
         st.header("Checklist Maintenance Harian")
         if user['role'] in ['admin', 'operator']:
@@ -313,13 +318,8 @@ def main():
         st.subheader("📋 Daftar Checklist")
         df = get_checklists() if user['role'] in ['admin', 'manager'] else get_checklists(user_id=user['id'])
         if not df.empty:
-            if user['role'] in ['admin', 'manager']:
-                display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'input_by']].copy()
-            else:
-                display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']].copy()
-
+            display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note'] + (['input_by'] if user['role'] in ['admin', 'manager'] else [])]
             st.dataframe(display_df, use_container_width=True, hide_index=True)
-
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist())
             if sel:
                 rec = df[df['id'] == int(sel)].iloc[0].to_dict()
@@ -328,6 +328,7 @@ def main():
         else:
             st.info("Belum ada data checklist.")
 
+    # === Calibration ===
     elif menu == "Calibration":
         st.header("Calibration Report")
         if user['role'] == "admin":
@@ -344,10 +345,7 @@ def main():
         st.subheader("📋 Daftar Calibration")
         df = get_calibrations() if user['role'] in ['admin', 'manager'] else get_calibrations(user_id=user['id'])
         if not df.empty:
-            if user['role'] in ['admin', 'manager']:
-                display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks', 'input_by']].copy()
-            else:
-                display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks']].copy()
+            display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks'] + (['input_by'] if user['role'] in ['admin', 'manager'] else [])]
             st.dataframe(display_df, use_container_width=True, hide_index=True)
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist(), key="cal_sel")
             if sel:
@@ -357,21 +355,16 @@ def main():
         else:
             st.info("Belum ada data calibration.")
 
+    # === Admin Dashboard ===
     elif menu == "Admin Dashboard":
         st.header("Admin Dashboard")
         st.subheader("Checklist Semua Pengguna")
         df_check = get_checklists()
-        if not df_check.empty:
-            st.dataframe(df_check[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'input_by']], use_container_width=True)
-        else:
-            st.info("Belum ada data.")
+        st.dataframe(df_check[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'input_by']], use_container_width=True)
 
         st.subheader("Calibration Semua Pengguna")
         df_cal = get_calibrations()
-        if not df_cal.empty:
-            st.dataframe(df_cal[['id', 'date', 'instrument', 'procedure', 'result', 'remarks', 'input_by']], use_container_width=True)
-        else:
-            st.info("Belum ada data.")
+        st.dataframe(df_cal[['id', 'date', 'instrument', 'procedure', 'result', 'remarks', 'input_by']], use_container_width=True)
 
     if st.button("🚪 Logout"):
         st.session_state['auth'] = False
