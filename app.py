@@ -4,6 +4,9 @@ from datetime import datetime
 from fpdf import FPDF
 import hashlib
 import pandas as pd
+import os
+from pydrive2.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
 
 # ---------------------------
 # CONFIG
@@ -171,6 +174,29 @@ def generate_pdf(record,title):
     return pdf.output(dest='S').encode('latin-1')
 
 # ---------------------------
+# GOOGLE DRIVE
+# ---------------------------
+def authenticate_drive():
+    gauth = GoogleAuth()
+    gauth.LocalWebserverAuth()  # login satu kali di browser
+    drive = GoogleDrive(gauth)
+    return drive
+
+def upload_to_drive(file_path, drive_folder_id=None):
+    drive = authenticate_drive()
+    # Tambahkan timestamp agar tidak overwrite
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_name = f"{os.path.splitext(os.path.basename(file_path))[0]}_{timestamp}.db"
+    
+    gfile = drive.CreateFile({'title': file_name})
+    if drive_folder_id:
+        gfile['parents'] = [{'id': drive_folder_id}]
+    
+    gfile.SetContentFile(file_path)
+    gfile.Upload()
+    st.success(f"File '{file_name}' berhasil di-upload ke Google Drive!")
+
+# ---------------------------
 # MAIN APP
 # ---------------------------
 def main():
@@ -200,11 +226,11 @@ def main():
                 st.session_state['auth']=True
                 st.session_state['user']=user
                 st.success(f"Login berhasil sebagai {user['role'].capitalize()}")
-                st.rerun()   # ✅ diganti dari experimental_rerun
+                st.rerun()
             else:
                 st.error("Login gagal. Password salah.")
         st.info("Silakan login menggunakan akun yang sudah ditentukan.")
-        return  # Hentikan eksekusi di sini jika belum login
+        return
 
     # ---------------- MAIN MENU ----------------
     user = st.session_state['user']
@@ -227,6 +253,7 @@ def main():
                 if submitted:
                     save_checklist(user['id'],str(date),machine,shift,item,condition,note)
                     st.success("Checklist tersimpan.")
+                    upload_to_drive(DB_PATH)  # ✅ Backup otomatis ke Google Drive
 
         st.subheader("Daftar Checklist")
         if user['role'] in ['admin','manager']:
@@ -258,6 +285,7 @@ def main():
                 if submit:
                     save_calibration(user['id'],str(date),instrument,procedure,result,remarks)
                     st.success("Calibration report tersimpan.")
+                    upload_to_drive(DB_PATH)  # ✅ Backup otomatis ke Google Drive
 
         st.subheader("Daftar Calibration")
         if user['role'] in ['admin','manager']:
@@ -287,7 +315,7 @@ def main():
     if st.button("Logout"):
         st.session_state['auth']=False
         st.session_state['user']=None
-        st.rerun()   # ✅ diganti dari experimental_rerun
+        st.rerun()
 
 if __name__=="__main__":
     main()
