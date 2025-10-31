@@ -200,7 +200,7 @@ def main():
                 st.session_state['auth']=True
                 st.session_state['user']=user
                 st.success(f"Login berhasil sebagai {user['role'].capitalize()}")
-                st.experimental_rerun()
+                st.rerun()   # ✅ diganti dari experimental_rerun
             else:
                 st.error("Login gagal. Password salah.")
         st.info("Silakan login menggunakan akun yang sudah ditentukan.")
@@ -287,7 +287,7 @@ def main():
     if st.button("Logout"):
         st.session_state['auth']=False
         st.session_state['user']=None
-        st.experimental_rerun()
+        st.rerun()   # ✅ diganti dari experimental_rerun
 
 if __name__=="__main__":
     main()
