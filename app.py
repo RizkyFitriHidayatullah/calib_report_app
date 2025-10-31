@@ -78,6 +78,8 @@ def init_db():
         item TEXT,
         condition TEXT,
         note TEXT,
+        image_before BLOB,
+        image_after BLOB,
         created_at TEXT
     )""")
     
@@ -125,19 +127,20 @@ def verify_user(username, password):
         return True, {"id": row[0], "username": row[1], "fullname": row[2], "role": row[3]}
     return False, None
 
-def save_checklist(user_id, date, machine, sub_area, shift, item, condition, note):
+def save_checklist(user_id, date, machine, sub_area, shift, item, condition, note, image_before=None, image_after=None):
     try:
         conn = get_conn()
         c = conn.cursor()
         date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)
         
-        # Debug print
-        print(f"Saving: user_id={user_id}, date={date_str}, machine={machine}, sub_area={sub_area}, shift={shift}, item={item}, condition={condition}, note={note}")
+        # Convert images to binary if provided
+        img_before_binary = image_before.read() if image_before else None
+        img_after_binary = image_after.read() if image_after else None
         
         c.execute("""
-            INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, date_str, machine, sub_area, shift, item, condition, note, datetime.utcnow().isoformat()))
+            INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, image_before, image_after, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, date_str, machine, sub_area, shift, item, condition, note, img_before_binary, img_after_binary, datetime.utcnow().isoformat()))
         conn.commit()
         conn.close()
         st.success(f"✅ Data berhasil disimpan!")
@@ -183,7 +186,7 @@ def get_checklists(user_id=None):
         """)
     rows = c.fetchall()
     conn.close()
-    cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "created_at", "input_by"]
+    cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "image_before", "image_after", "created_at", "input_by"]
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 def get_calibrations(user_id=None):
@@ -294,9 +297,14 @@ def main():
                 condition = col1.selectbox("Condition", ["Good", "Minor", "Bad"])
                 
                 note = st.text_area("Keterangan / Temuan")
+                
+                st.markdown("#### 📷 Upload Gambar (Opsional)")
+                col_img1, col_img2 = st.columns(2)
+                image_before = col_img1.file_uploader("Foto Before", type=['png', 'jpg', 'jpeg'], key="before")
+                image_after = col_img2.file_uploader("Foto After", type=['png', 'jpg', 'jpeg'], key="after")
 
                 if st.form_submit_button("💾 Simpan Checklist", use_container_width=True):
-                    if save_checklist(user['id'], date, machine, sub_area, shift, item, condition, note):
+                    if save_checklist(user['id'], date, machine, sub_area, shift, item, condition, note, image_before, image_after):
                         st.rerun()
 
         st.subheader("📋 Daftar Checklist")
@@ -307,7 +315,32 @@ def main():
                 display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'input_by']].copy()
             else:
                 display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']].copy()
+            
+            # Add indicator if images exist
+            if 'image_before' in df.columns and 'image_after' in df.columns:
+                display_df['has_images'] = df.apply(lambda row: '📷' if row['image_before'] or row['image_after'] else '', axis=1)
+            
             st.dataframe(display_df, use_container_width=True, hide_index=True)
+            
+            # View images
+            sel = st.selectbox("Pilih ID untuk melihat detail/gambar", [""] + df['id'].astype(str).tolist())
+            if sel:
+                rec = df[df['id'] == int(sel)].iloc[0]
+                
+                with st.expander("📸 Lihat Gambar Before & After", expanded=True):
+                    col_view1, col_view2 = st.columns(2)
+                    
+                    if rec['image_before']:
+                        col_view1.markdown("**Before:**")
+                        col_view1.image(rec['image_before'], use_container_width=True)
+                    else:
+                        col_view1.info("Tidak ada foto Before")
+                    
+                    if rec['image_after']:
+                        col_view2.markdown("**After:**")
+                        col_view2.image(rec['image_after'], use_container_width=True)
+                    else:
+                        col_view2.info("Tidak ada foto After")
             
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist())
             if sel:
