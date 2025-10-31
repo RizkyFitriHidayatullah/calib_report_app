@@ -9,8 +9,19 @@ import os
 # ---------------------------
 # CONFIG
 # ---------------------------
-st.set_page_config(page_title="Maintenance & Calibration System", layout="centered")
+st.set_page_config(page_title="Maintenance & Calibration System", layout="centered")  # ✅ Fix mobile layout
 DB_PATH = os.path.join(os.getcwd(), "maintenance_app.db")
+
+# ✅ Hide Streamlit branding / GitHub button / Fork button
+hide_streamlit_style = """
+<style>
+#MainMenu {visibility: hidden;}      /* Menu kanan atas */
+footer {visibility: hidden;}        /* Footer */
+header {visibility: hidden;}        /* Header title */
+.css-17ziqus, .css-1rs6os, .stAppToolbar {display: none !important;} /* GitHub & Deploy icons */
+</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # ---------------------------
 # UTIL: BOOTSTRAP
@@ -24,22 +35,8 @@ def inject_bootstrap():
         .form-label {font-weight:600;}
         .small-muted {font-size:0.9rem;color:#6c757d;}
         @media(max-width: 768px) {
-            .css-1d391kg {width: 90vw !important;}
+            .css-1d391kg {width: 90vw !important;} /* ✅ Sidebar responsive */
         }
-    </style>
-    """, unsafe_allow_html=True)
-
-# ---------------------------
-# HIDE STREAMLIT DEFAULT UI (✅ ADDED)
-# ---------------------------
-def hide_streamlit_ui():
-    st.markdown("""
-    <style>
-        #MainMenu {visibility: hidden;}
-        header {visibility: hidden;}
-        footer {visibility: hidden;}
-        .stDeployButton {display: none;}
-        #stToolbar {display: none;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -53,6 +50,7 @@ def init_db():
     conn = get_conn()
     c = conn.cursor()
 
+    # Users table
     c.execute("""
     CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,6 +61,7 @@ def init_db():
         created_at TEXT
     )""")
 
+    # Checklist table
     c.execute("""
     CREATE TABLE IF NOT EXISTS checklist(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,6 +75,7 @@ def init_db():
         created_at TEXT
     )""")
 
+    # Calibration table
     c.execute("""
     CREATE TABLE IF NOT EXISTS calibration(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -178,13 +178,13 @@ def generate_pdf(record,title):
 # ---------------------------
 def main():
     inject_bootstrap()
-    hide_streamlit_ui()  # ✅ Hide fork, github, menu
     init_db()
 
     if 'auth' not in st.session_state:
         st.session_state['auth']=False
         st.session_state['user']=None
 
+    # ✅ Login ALWAYS visible in sidebar
     st.sidebar.title("🔐 Login")
 
     conn=get_conn()
@@ -216,6 +216,7 @@ def main():
         else:
             page=st.sidebar.radio("Menu",["Checklist"])
 
+        # Checklist
         if page=="Checklist":
             st.header("Checklist Maintenance Harian")
             if user['role'] in ['admin','operator']:
@@ -235,6 +236,7 @@ def main():
             df=get_checklists(user['id'] if user['role']=="operator" else None)
             st.dataframe(df)
 
+        # Calibration
         if page=="Calibration":
             st.header("Calibration Report")
             if user['role']=="admin":
