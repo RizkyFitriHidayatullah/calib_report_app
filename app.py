@@ -46,7 +46,6 @@ def get_conn():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     return conn
 
-
 def init_db():
     conn = get_conn()
     c = conn.cursor()
@@ -87,14 +86,13 @@ def init_db():
         created_at TEXT
     )""")
 
-    # If older DB existed without sub_area, add column (safe to run multiple times)
+    # Jika database lama belum punya kolom sub_area
     c.execute("PRAGMA table_info(checklist)")
     cols = [r[1] for r in c.fetchall()]
     if 'sub_area' not in cols:
         try:
             c.execute("ALTER TABLE checklist ADD COLUMN sub_area TEXT;")
         except Exception:
-            # If it fails for any reason, ignore (column may already exist)
             pass
 
     # Default users
@@ -112,10 +110,8 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 def hash_password(password):
     return hashlib.sha256((password+'salt2025').encode()).hexdigest()
-
 
 def verify_user(username,password):
     conn = get_conn()
@@ -127,7 +123,6 @@ def verify_user(username,password):
         return True, {"id":row[0],"username":row[1],"fullname":row[2],"role":row[3]}
     return False, None
 
-
 def save_checklist(user_id,date,machine,sub_area,shift,item,condition,note):
     conn=get_conn()
     c=conn.cursor()
@@ -137,7 +132,6 @@ def save_checklist(user_id,date,machine,sub_area,shift,item,condition,note):
     conn.commit()
     conn.close()
 
-
 def save_calibration(user_id,date,instrument,procedure,result,remarks):
     conn=get_conn()
     c=conn.cursor()
@@ -146,7 +140,6 @@ def save_calibration(user_id,date,instrument,procedure,result,remarks):
               (user_id,str(date),instrument,procedure,result,remarks,datetime.utcnow().isoformat()))
     conn.commit()
     conn.close()
-
 
 def get_checklists(user_id=None):
     conn=get_conn()
@@ -159,7 +152,6 @@ def get_checklists(user_id=None):
     conn.close()
     cols=["id","user_id","date","machine","sub_area","shift","item","condition","note","created_at"]
     return pd.DataFrame(rows,columns=cols)
-
 
 def get_calibrations(user_id=None):
     conn=get_conn()
@@ -182,7 +174,7 @@ def generate_pdf(record,title):
     pdf.set_font("Arial",size=12)
     pdf.cell(0,8,title,ln=True,align="C")
     pdf.ln(4)
-    # Make ordering deterministic for checklist vs calibration
+    # Urutan kolom
     keys_order = ["id","date","machine","sub_area","shift","item","condition","note","instrument","procedure","result","remarks","user_id","created_at"]
     for k in keys_order:
         if k in record:
@@ -190,7 +182,6 @@ def generate_pdf(record,title):
             pdf.cell(50,8,f"{k}:",border=0)
             pdf.set_font("Arial",size=11)
             pdf.multi_cell(0,8,str(record.get(k)))
-    # any remaining keys
     for k,v in record.items():
         if k not in keys_order:
             pdf.set_font("Arial",style='B',size=11)
@@ -229,11 +220,11 @@ def main():
                 st.session_state['auth']=True
                 st.session_state['user']=user
                 st.success(f"Login berhasil sebagai {user['role'].capitalize()}")
-                st.rerun()   # ✅ diganti dari experimental_rerun
+                st.rerun()
             else:
                 st.error("Login gagal. Password salah.")
         st.info("Silakan login menggunakan akun yang sudah ditentukan.")
-        return  # Hentikan eksekusi di sini jika belum login
+        return
 
     # ---------------- MAIN MENU ----------------
     user = st.session_state['user']
@@ -248,17 +239,14 @@ def main():
                 col1,col2=st.columns([2,1])
                 date=col1.date_input("Tanggal",value=datetime.today())
                 machine=col1.selectbox("Machine / Area", ["Papper Machine 1","Papper Machine 2","Boiler","WWTP","Other"])
-
-                # --- Sub Area tergantung machine ---
                 sub_area_options = {
-                    "Papper Machine 1": ["Reel Section", "Press Section", "Wire Section", "Dryer", "Calendar"],
-                    "Papper Machine 2": ["Reel Section", "Press Section", "Wire Section", "Dryer", "Calendar"],
-                    "Boiler": ["Feed Pump", "Burner", "Economizer", "Air Fan", "Other"],
-                    "WWTP": ["Blower", "Screening", "Clarifier", "Sludge Pump", "Other"],
-                    "Other": ["General Area", "Office", "Workshop"]
+                    "Papper Machine 1": ["Reel Section","Press Section","Wire Section","Dryer","Calendar"],
+                    "Papper Machine 2": ["Reel Section","Press Section","Wire Section","Dryer","Calendar"],
+                    "Boiler": ["Feed Pump","Burner","Economizer","Air Fan","Other"],
+                    "WWTP": ["Blower","Screening","Clarifier","Sludge Pump","Other"],
+                    "Other": ["General Area","Office","Workshop"]
                 }
-                sub_area = col1.selectbox("Sub Area", sub_area_options.get(machine, ["-"]))
-
+                sub_area=col1.selectbox("Sub Area", sub_area_options.get(machine, ["-"]))
                 shift=col2.selectbox("Shift",["Pagi","Siang","Malam"])
                 item=st.selectbox("Item yang diperiksa",["Motor","Belt","Bearing","Oil Level","Sensor","Other"])
                 condition=st.selectbox("Condition",["Good","Minor","Bad"])
@@ -327,7 +315,7 @@ def main():
     if st.button("Logout"):
         st.session_state['auth']=False
         st.session_state['user']=None
-        st.rerun()   # ✅ diganti dari experimental_rerun
+        st.rerun()
 
 if __name__=="__main__":
     main()
