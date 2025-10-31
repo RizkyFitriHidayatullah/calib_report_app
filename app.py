@@ -218,7 +218,7 @@ def main():
             with st.form("checklist_form",clear_on_submit=True):
                 col1,col2=st.columns([2,1])
                 date=col1.date_input("Tanggal",value=datetime.today())
-                machine=col1.selectbox("Machine / Area", ["Balling Press","Conveyor A","Conveyor B","Compressor","Other"])
+                machine=col1.selectbox("Machine / Area", ["Papper Machine 1","Papper Machine 2","Boiler","WWTP","Other"])
                 shift=col2.selectbox("Shift",["Pagi","Siang","Malam"])
                 item=st.selectbox("Item yang diperiksa",["Motor","Belt","Bearing","Oil Level","Sensor","Other"])
                 condition=st.selectbox("Condition",["Good","Minor","Bad"])
