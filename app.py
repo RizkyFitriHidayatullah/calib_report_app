@@ -4,6 +4,7 @@ from datetime import datetime
 from fpdf import FPDF
 import hashlib
 import pandas as pd
+from io import BytesIO
 
 # ---------------------------
 # CONFIG
@@ -350,15 +351,15 @@ def main():
                 with st.expander("📸 Lihat Gambar Before & After", expanded=True):
                     col_view1, col_view2 = st.columns(2)
                     
-                    if rec['image_before']:
+                    if rec['image_before'] and isinstance(rec['image_before'], bytes):
                         col_view1.markdown("**Before:**")
-                        col_view1.image(rec['image_before'], use_container_width=True)
+                        col_view1.image(BytesIO(rec['image_before']), use_container_width=True)
                     else:
                         col_view1.info("Tidak ada foto Before")
                     
-                    if rec['image_after']:
+                    if rec['image_after'] and isinstance(rec['image_after'], bytes):
                         col_view2.markdown("**After:**")
-                        col_view2.image(rec['image_after'], use_container_width=True)
+                        col_view2.image(BytesIO(rec['image_after']), use_container_width=True)
                     else:
                         col_view2.info("Tidak ada foto After")
             
