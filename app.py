@@ -212,37 +212,62 @@ def main():
     menu = st.radio("Pilih Menu", ["Checklist", "Calibration"] + (["Admin Dashboard"] if user['role']=="admin" else []))
 
     # -------- Checklist --------
-    if menu=="Checklist":
-        st.header("Checklist Maintenance Harian")
-        if user['role'] in ['admin','operator']:
-            with st.form("checklist_form",clear_on_submit=True):
-                col1,col2=st.columns([2,1])
-                date=col1.date_input("Tanggal",value=datetime.today())
-                machine=col1.selectbox("Machine / Area", ["Papper Machine 1","Papper Machine 2","Boiler","WWTP","Other"])
-                shift=col2.selectbox("Shift",["Pagi","Siang","Malam"])
-                item=st.selectbox("Item yang diperiksa",["Motor","Belt","Bearing","Oil Level","Sensor","Other"])
-                condition=st.selectbox("Condition",["Good","Minor","Bad"])
-                note=st.text_area("Keterangan / Temuan")
-                submitted=st.form_submit_button("Simpan Checklist")
-                if submitted:
-                    save_checklist(user['id'],str(date),machine,shift,item,condition,note)
-                    st.success("Checklist tersimpan.")
+if menu == "Checklist":
+    st.header("Checklist Maintenance Harian")
 
-        st.subheader("Daftar Checklist")
-        if user['role'] in ['admin','manager']:
-            df=get_checklists()
-        else:
-            df=get_checklists(user_id=user['id'])
+    if user['role'] in ['admin', 'operator']:
+        with st.form("checklist_form", clear_on_submit=True):
+            col1, col2 = st.columns([2, 1])
 
-        if not df.empty:
-            st.dataframe(df[['id','date','machine','shift','item','condition','note']])
-            sel=st.selectbox("Pilih ID untuk download PDF",[""]+df['id'].astype(str).tolist())
-            if sel:
-                rec=df[df['id']==int(sel)].iloc[0].to_dict()
-                pdf_bytes=generate_pdf(rec,"Checklist Maintenance")
-                st.download_button("Download PDF",data=pdf_bytes,file_name=f"checklist_{sel}.pdf",mime="application/pdf")
-        else:
-            st.info("Belum ada data.")
+            date = col1.date_input("Tanggal", value=datetime.today())
+            machine = col1.selectbox(
+                "Machine / Area",
+                ["Papper Machine 1", "Papper Machine 2", "Boiler", "WWTP", "Other"]
+            )
+
+            # --- Sub Area tergantung machine ---
+            sub_area_options = {
+                "Papper Machine 1": ["Reel Section", "Press Section", "Wire Section", "Dryer", "Calendar"],
+                "Papper Machine 2": ["Reel Section", "Press Section", "Wire Section", "Dryer", "Calendar"],
+                "Boiler": ["Feed Pump", "Burner", "Economizer", "Air Fan", "Other"],
+                "WWTP": ["Blower", "Screening", "Clarifier", "Sludge Pump", "Other"],
+                "Other": ["General Area", "Office", "Workshop"]
+            }
+
+            sub_area = col1.selectbox("Sub Area", sub_area_options.get(machine, ["-"]))
+
+            shift = col2.selectbox("Shift", ["Pagi", "Siang", "Malam"])
+            item = st.selectbox("Item yang diperiksa", ["Motor", "Belt", "Bearing", "Oil Level", "Sensor", "Other"])
+            condition = st.selectbox("Condition", ["Good", "Minor", "Bad"])
+            note = st.text_area("Keterangan / Temuan")
+
+            submitted = st.form_submit_button("Simpan Checklist")
+            if submitted:
+                save_checklist(user['id'], str(date), machine, sub_area, shift, item, condition, note)
+                st.success("Checklist tersimpan.")
+
+    st.subheader("Daftar Checklist")
+
+    if user['role'] in ['admin', 'manager']:
+        df = get_checklists()
+    else:
+        df = get_checklists(user_id=user['id'])
+
+    if not df.empty:
+        st.dataframe(df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']])
+        sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist())
+        if sel:
+            rec = df[df['id'] == int(sel)].iloc[0].to_dict()
+            pdf_bytes = generate_pdf(rec, "Checklist Maintenance")
+            st.download_button(
+                "Download PDF",
+                data=pdf_bytes,
+                file_name=f"checklist_{sel}.pdf",
+                mime="application/pdf"
+            )
+    else:
+        st.info("Belum ada data.")
+
 
     # -------- Calibration --------
     if menu=="Calibration":
