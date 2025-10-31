@@ -241,6 +241,7 @@ def main():
                 if st.form_submit_button("💾 Simpan Checklist"):
                     save_checklist(user['id'], date, machine, sub_area, shift, item, condition, note)
                     st.success("Checklist berhasil disimpan!")
+                    st.cache_data.clear()  # Clear cache to ensure fresh data
 
         st.subheader("📋 Daftar Checklist")
         df = get_checklists() if user['role'] in ['admin', 'manager'] else get_checklists(user_id=user['id'])
@@ -267,6 +268,7 @@ def main():
                 if st.form_submit_button("💾 Simpan Calibration Report"):
                     save_calibration(user['id'], date, instrument, procedure, result, remarks)
                     st.success("Calibration report berhasil disimpan!")
+                    st.cache_data.clear()  # Clear cache to ensure fresh data
 
         st.subheader("📋 Daftar Calibration")
         df = get_calibrations() if user['role'] in ['admin', 'manager'] else get_calibrations(user_id=user['id'])
