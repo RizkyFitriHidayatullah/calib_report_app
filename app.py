@@ -48,42 +48,6 @@ def get_conn():
 def init_db():
     conn = get_conn()
     c = conn.cursor()
-    # Users table
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS users(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE,
-        password_hash TEXT,
-        fullname TEXT,
-        role TEXT,
-        created_at TEXT
-    )""")
-    # Checklist table
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS checklist(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        date TEXT,
-        machine TEXT,
-        sub_area TEXT,
-        shift TEXT,
-        item TEXT,
-        condition TEXT,
-        note TEXT,
-        created_at TEXT
-    )""")
-    # Calibration table
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS calibration(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        date TEXT,
-        instrument TEXT,
-        procedure TEXT,
-        result TEXT,
-        remarks TEXT,
-        created_at TEXT
-    )""")
 
     # Add default users if not exist
     default_users = [
