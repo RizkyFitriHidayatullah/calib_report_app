@@ -83,6 +83,15 @@ def init_db():
         created_at TEXT
     )""")
     
+    # AUTO-MIGRATE: Add image columns if not exist
+    try:
+        c.execute("ALTER TABLE checklist ADD COLUMN image_before BLOB")
+        c.execute("ALTER TABLE checklist ADD COLUMN image_after BLOB")
+        conn.commit()
+    except sqlite3.OperationalError:
+        # Columns already exist
+        pass
+    
     # Calibration table
     c.execute("""
     CREATE TABLE IF NOT EXISTS calibration(
@@ -169,6 +178,12 @@ def save_calibration(user_id, date, instrument, procedure, result, remarks):
 def get_checklists(user_id=None):
     conn = get_conn()
     c = conn.cursor()
+    
+    # Check if image columns exist
+    c.execute("PRAGMA table_info(checklist)")
+    columns_info = c.fetchall()
+    has_images = any(col[1] in ['image_before', 'image_after'] for col in columns_info)
+    
     if user_id:
         c.execute("""
             SELECT c.*, u.fullname 
@@ -186,7 +201,12 @@ def get_checklists(user_id=None):
         """)
     rows = c.fetchall()
     conn.close()
-    cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "image_before", "image_after", "created_at", "input_by"]
+    
+    if has_images:
+        cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "image_before", "image_after", "created_at", "input_by"]
+    else:
+        cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "created_at", "input_by"]
+    
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 def get_calibrations(user_id=None):
