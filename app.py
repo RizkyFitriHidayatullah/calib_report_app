@@ -167,24 +167,46 @@ def get_checklists(user_id=None):
     conn = get_conn()
     c = conn.cursor()
     if user_id:
-        c.execute("SELECT * FROM checklist WHERE user_id=? ORDER BY date DESC, id DESC", (user_id,))
+        c.execute("""
+            SELECT c.*, u.fullname 
+            FROM checklist c 
+            LEFT JOIN users u ON c.user_id = u.id 
+            WHERE c.user_id=? 
+            ORDER BY c.date DESC, c.id DESC
+        """, (user_id,))
     else:
-        c.execute("SELECT * FROM checklist ORDER BY date DESC, id DESC")
+        c.execute("""
+            SELECT c.*, u.fullname 
+            FROM checklist c 
+            LEFT JOIN users u ON c.user_id = u.id 
+            ORDER BY c.date DESC, c.id DESC
+        """)
     rows = c.fetchall()
     conn.close()
-    cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "created_at"]
+    cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "created_at", "input_by"]
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 def get_calibrations(user_id=None):
     conn = get_conn()
     c = conn.cursor()
     if user_id:
-        c.execute("SELECT * FROM calibration WHERE user_id=? ORDER BY date DESC, id DESC", (user_id,))
+        c.execute("""
+            SELECT c.*, u.fullname 
+            FROM calibration c 
+            LEFT JOIN users u ON c.user_id = u.id 
+            WHERE c.user_id=? 
+            ORDER BY c.date DESC, c.id DESC
+        """, (user_id,))
     else:
-        c.execute("SELECT * FROM calibration ORDER BY date DESC, id DESC")
+        c.execute("""
+            SELECT c.*, u.fullname 
+            FROM calibration c 
+            LEFT JOIN users u ON c.user_id = u.id 
+            ORDER BY c.date DESC, c.id DESC
+        """)
     rows = c.fetchall()
     conn.close()
-    cols = ["id", "user_id", "date", "instrument", "procedure", "result", "remarks", "created_at"]
+    cols = ["id", "user_id", "date", "instrument", "procedure", "result", "remarks", "created_at", "input_by"]
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 # ---------------------------
@@ -280,8 +302,11 @@ def main():
         st.subheader("📋 Daftar Checklist")
         df = get_checklists() if user['role'] in ['admin', 'manager'] else get_checklists(user_id=user['id'])
         if not df.empty:
-            # Display dengan column yang benar
-            display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']].copy()
+            # Display dengan column yang benar + input_by untuk manager/admin
+            if user['role'] in ['admin', 'manager']:
+                display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'input_by']].copy()
+            else:
+                display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']].copy()
             st.dataframe(display_df, use_container_width=True, hide_index=True)
             
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist())
@@ -309,7 +334,10 @@ def main():
         st.subheader("📋 Daftar Calibration")
         df = get_calibrations() if user['role'] in ['admin', 'manager'] else get_calibrations(user_id=user['id'])
         if not df.empty:
-            display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks']].copy()
+            if user['role'] in ['admin', 'manager']:
+                display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks', 'input_by']].copy()
+            else:
+                display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks']].copy()
             st.dataframe(display_df, use_container_width=True, hide_index=True)
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist(), key="cal_sel")
             if sel:
@@ -325,14 +353,14 @@ def main():
         st.subheader("Checklist Semua Pengguna")
         df_check = get_checklists()
         if not df_check.empty:
-            st.dataframe(df_check[['id', 'user_id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']], use_container_width=True)
+            st.dataframe(df_check[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'input_by']], use_container_width=True)
         else:
             st.info("Belum ada data.")
             
         st.subheader("Calibration Semua Pengguna")
         df_cal = get_calibrations()
         if not df_cal.empty:
-            st.dataframe(df_cal, use_container_width=True)
+            st.dataframe(df_cal[['id', 'date', 'instrument', 'procedure', 'result', 'remarks', 'input_by']], use_container_width=True)
         else:
             st.info("Belum ada data.")
 
