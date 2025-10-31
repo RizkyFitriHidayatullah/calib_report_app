@@ -5,6 +5,8 @@ from fpdf import FPDF
 import hashlib
 import pandas as pd
 from io import BytesIO
+from PIL import Image
+import tempfile
 
 # ---------------------------
 # CONFIG
@@ -49,14 +51,7 @@ def get_conn():
 def init_db():
     conn = get_conn()
     c = conn.cursor()
-    
-    # DROP existing tables if they have wrong structure (TEMPORARY FIX)
-    # Uncomment these 3 lines ONLY ONCE to reset database, then comment them again
-    # c.execute("DROP TABLE IF EXISTS checklist")
-    # c.execute("DROP TABLE IF EXISTS calibration")
-    # conn.commit()
-    
-    # Users table
+
     c.execute("""
     CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,8 +61,7 @@ def init_db():
         role TEXT,
         created_at TEXT
     )""")
-    
-    # Checklist table
+
     c.execute("""
     CREATE TABLE IF NOT EXISTS checklist(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,17 +77,7 @@ def init_db():
         image_after BLOB,
         created_at TEXT
     )""")
-    
-    # AUTO-MIGRATE: Add image columns if not exist
-    try:
-        c.execute("ALTER TABLE checklist ADD COLUMN image_before BLOB")
-        c.execute("ALTER TABLE checklist ADD COLUMN image_after BLOB")
-        conn.commit()
-    except sqlite3.OperationalError:
-        # Columns already exist
-        pass
-    
-    # Calibration table
+
     c.execute("""
     CREATE TABLE IF NOT EXISTS calibration(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,7 +90,6 @@ def init_db():
         created_at TEXT
     )""")
 
-    # Add default users if not exist
     default_users = [
         ("admin", "admin123", "Admin", "admin"),
         ("manager", "manager123", "Manager", "manager"),
@@ -142,11 +125,10 @@ def save_checklist(user_id, date, machine, sub_area, shift, item, condition, not
         conn = get_conn()
         c = conn.cursor()
         date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)
-        
-        # Convert images to binary if provided
+
         img_before_binary = image_before.read() if image_before else None
         img_after_binary = image_after.read() if image_after else None
-        
+
         c.execute("""
             INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, image_before, image_after, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -179,12 +161,6 @@ def save_calibration(user_id, date, instrument, procedure, result, remarks):
 def get_checklists(user_id=None):
     conn = get_conn()
     c = conn.cursor()
-    
-    # Check if image columns exist
-    c.execute("PRAGMA table_info(checklist)")
-    columns_info = c.fetchall()
-    has_images = any(col[1] in ['image_before', 'image_after'] for col in columns_info)
-    
     if user_id:
         c.execute("""
             SELECT c.*, u.fullname 
@@ -202,12 +178,7 @@ def get_checklists(user_id=None):
         """)
     rows = c.fetchall()
     conn.close()
-    
-    if has_images:
-        cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "image_before", "image_after", "created_at", "input_by"]
-    else:
-        cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "created_at", "input_by"]
-    
+    cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "image_before", "image_after", "created_at", "input_by"]
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 def get_calibrations(user_id=None):
@@ -234,20 +205,42 @@ def get_calibrations(user_id=None):
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 # ---------------------------
-# PDF GENERATOR
+# PDF GENERATOR (FIXED)
 # ---------------------------
 def generate_pdf(record, title):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(0, 8, title, ln=True, align="C")
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, title, ln=True, align="C")
     pdf.ln(5)
+    pdf.set_font("Arial", size=11)
+
+    # Cetak field teks
     for key, value in record.items():
-        pdf.set_font("Arial", style='B', size=11)
-        pdf.cell(40, 8, f"{key.capitalize()}:", 0)
-        pdf.set_font("Arial", size=11)
-        pdf.multi_cell(0, 8, str(value))
-    return pdf.output(dest='S').encode('latin-1')
+        if key not in ["image_before", "image_after"]:
+            pdf.set_font("Arial", "B", 11)
+            pdf.cell(45, 8, f"{key.capitalize()}:", 0)
+            pdf.set_font("Arial", size=11)
+            pdf.multi_cell(0, 8, str(value))
+    pdf.ln(5)
+    pdf.cell(0, 5, "---------------------------------------------", ln=True)
+
+    # Tambahkan gambar jika ada
+    for img_field, label in [("image_before", "Before"), ("image_after", "After")]:
+        if record.get(img_field):
+            try:
+                img_data = record[img_field]
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                    tmp.write(img_data)
+                    tmp.flush()
+                    pdf.add_page()
+                    pdf.set_font("Arial", "B", 12)
+                    pdf.cell(0, 10, f"Gambar {label}", ln=True, align="C")
+                    pdf.image(tmp.name, x=30, y=40, w=150)
+            except Exception as e:
+                pdf.add_page()
+                pdf.cell(0, 10, f"Gagal menambahkan gambar {label}: {e}", ln=True)
+    return pdf.output(dest="S").encode("latin-1")
 
 # ---------------------------
 # MAIN APP
@@ -269,12 +262,10 @@ def main():
         conn.close()
 
         st.subheader("🔐 Login")
-        
         with st.form("login_form"):
             selected_user = st.selectbox("Pilih Username", usernames)
             password = st.text_input("Password", type="password")
             submit = st.form_submit_button("Login", use_container_width=True)
-            
             if submit:
                 ok, user = verify_user(selected_user, password)
                 if ok:
@@ -286,7 +277,6 @@ def main():
                     st.error("Login gagal. Password salah.")
         st.stop()
 
-    # MENU
     user = st.session_state['user']
     st.success(f"Halo, {user['fullname']} ({user['role']})")
     menu = st.radio("Pilih Menu", ["Checklist", "Calibration"] + (["Admin Dashboard"] if user['role'] == "admin" else []), horizontal=True)
@@ -297,11 +287,8 @@ def main():
         if user['role'] in ['admin', 'operator']:
             with st.form("checklist_form", clear_on_submit=True):
                 col1, col2 = st.columns([3, 1])
-                
                 date = col1.date_input("Tanggal", value=datetime.today())
-                
                 machine = col1.selectbox("Machine / Area", ["Papper Machine 1", "Papper Machine 2", "Boiler", "WWTP", "Other"])
-
                 sub_area_options = {
                     "Papper Machine 1": ["Wire Section", "Press Section", "Dryer Section", "Calendar", "Reel"],
                     "Papper Machine 2": ["Wire Section", "Press Section", "Dryer Section", "Calendar", "Reel"],
@@ -310,15 +297,10 @@ def main():
                     "Other": ["Workshop", "Office", "Warehouse"]
                 }
                 sub_area = col1.selectbox("Sub Area", sub_area_options.get(machine, ["N/A"]))
-
                 shift = col2.selectbox("Shift", ["Pagi", "Siang", "Malam"])
-                
                 item = col1.selectbox("Item yang diperiksa", ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"])
-                
                 condition = col1.selectbox("Condition", ["Good", "Minor", "Bad"])
-                
                 note = st.text_area("Keterangan / Temuan")
-                
                 st.markdown("#### 📷 Upload Gambar (Opsional)")
                 col_img1, col_img2 = st.columns(2)
                 image_before = col_img1.file_uploader("Foto Before", type=['png', 'jpg', 'jpeg'], key="before")
@@ -331,38 +313,13 @@ def main():
         st.subheader("📋 Daftar Checklist")
         df = get_checklists() if user['role'] in ['admin', 'manager'] else get_checklists(user_id=user['id'])
         if not df.empty:
-            # Display dengan column yang benar + input_by untuk manager/admin
             if user['role'] in ['admin', 'manager']:
                 display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'input_by']].copy()
             else:
                 display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']].copy()
-            
-            # Add indicator if images exist
-            if 'image_before' in df.columns and 'image_after' in df.columns:
-                display_df['has_images'] = df.apply(lambda row: '📷' if row['image_before'] or row['image_after'] else '', axis=1)
-            
+
             st.dataframe(display_df, use_container_width=True, hide_index=True)
-            
-            # View images
-            sel = st.selectbox("Pilih ID untuk melihat detail/gambar", [""] + df['id'].astype(str).tolist())
-            if sel:
-                rec = df[df['id'] == int(sel)].iloc[0]
-                
-                with st.expander("📸 Lihat Gambar Before & After", expanded=True):
-                    col_view1, col_view2 = st.columns(2)
-                    
-                    if rec['image_before'] and isinstance(rec['image_before'], bytes):
-                        col_view1.markdown("**Before:**")
-                        col_view1.image(BytesIO(rec['image_before']), use_container_width=True)
-                    else:
-                        col_view1.info("Tidak ada foto Before")
-                    
-                    if rec['image_after'] and isinstance(rec['image_after'], bytes):
-                        col_view2.markdown("**After:**")
-                        col_view2.image(BytesIO(rec['image_after']), use_container_width=True)
-                    else:
-                        col_view2.info("Tidak ada foto After")
-            
+
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist())
             if sel:
                 rec = df[df['id'] == int(sel)].iloc[0].to_dict()
@@ -371,7 +328,6 @@ def main():
         else:
             st.info("Belum ada data checklist.")
 
-    # CALIBRATION
     elif menu == "Calibration":
         st.header("Calibration Report")
         if user['role'] == "admin":
@@ -401,7 +357,6 @@ def main():
         else:
             st.info("Belum ada data calibration.")
 
-    # ADMIN DASHBOARD
     elif menu == "Admin Dashboard":
         st.header("Admin Dashboard")
         st.subheader("Checklist Semua Pengguna")
@@ -410,7 +365,7 @@ def main():
             st.dataframe(df_check[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'input_by']], use_container_width=True)
         else:
             st.info("Belum ada data.")
-            
+
         st.subheader("Calibration Semua Pengguna")
         df_cal = get_calibrations()
         if not df_cal.empty:
