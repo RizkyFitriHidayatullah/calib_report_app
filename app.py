@@ -9,16 +9,22 @@ import os
 # ---------------------------
 # CONFIG
 # ---------------------------
-st.set_page_config(page_title="Maintenance & Calibration System", layout="centered")  # ✅ Fix mobile layout
+st.set_page_config(page_title="Maintenance & Calibration System", layout="centered")
 DB_PATH = os.path.join(os.getcwd(), "maintenance_app.db")
 
-# ✅ Hide Streamlit branding / GitHub button / Fork button
+# ✅ Hide Streamlit branding / GitHub / Fork buttons — Sidebar tetap ada
 hide_streamlit_style = """
 <style>
-#MainMenu {visibility: hidden;}      /* Menu kanan atas */
-footer {visibility: hidden;}        /* Footer */
-header {visibility: hidden;}        /* Header title */
-.css-17ziqus, .css-1rs6os, .stAppToolbar {display: none !important;} /* GitHub & Deploy icons */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+/* Hide GitHub & Fork icons ONLY */
+[data-testid="stActionButtonIcon"] {display: none !important;}
+button[kind="icon"] {display: none !important;}
+
+/* Hide Streamlit toolbar but do NOT kill sidebar */
+.stAppToolbar {visibility: hidden !important;}
 </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
@@ -35,7 +41,7 @@ def inject_bootstrap():
         .form-label {font-weight:600;}
         .small-muted {font-size:0.9rem;color:#6c757d;}
         @media(max-width: 768px) {
-            .css-1d391kg {width: 90vw !important;} /* ✅ Sidebar responsive */
+            .css-1d391kg {width: 90vw !important;}
         }
     </style>
     """, unsafe_allow_html=True)
@@ -50,7 +56,6 @@ def init_db():
     conn = get_conn()
     c = conn.cursor()
 
-    # Users table
     c.execute("""
     CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +66,6 @@ def init_db():
         created_at TEXT
     )""")
 
-    # Checklist table
     c.execute("""
     CREATE TABLE IF NOT EXISTS checklist(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +79,6 @@ def init_db():
         created_at TEXT
     )""")
 
-    # Calibration table
     c.execute("""
     CREATE TABLE IF NOT EXISTS calibration(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -184,7 +187,7 @@ def main():
         st.session_state['auth']=False
         st.session_state['user']=None
 
-    # ✅ Login ALWAYS visible in sidebar
+    # ✅ Login box always visible
     st.sidebar.title("🔐 Login")
 
     conn=get_conn()
@@ -216,7 +219,6 @@ def main():
         else:
             page=st.sidebar.radio("Menu",["Checklist"])
 
-        # Checklist
         if page=="Checklist":
             st.header("Checklist Maintenance Harian")
             if user['role'] in ['admin','operator']:
@@ -236,14 +238,13 @@ def main():
             df=get_checklists(user['id'] if user['role']=="operator" else None)
             st.dataframe(df)
 
-        # Calibration
         if page=="Calibration":
             st.header("Calibration Report")
             if user['role']=="admin":
                 with st.form("cal_form",clear_on_submit=True):
                     date=st.date_input("Tanggal",value=datetime.today())
                     instrument=st.selectbox("Instrument",["Multimeter","Pressure Gauge","Thermometer","Flow Meter","Other"])
-                    procedure=st.text_area("Prosedur")
+                    procedure=st.textarea("Prosedur")
                     result=st.selectbox("Hasil",["Pass","Fail","Adjust"])
                     remarks=st.text_area("Catatan")
                     submit=st.form_submit_button("Simpan Calibration")
