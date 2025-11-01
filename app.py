@@ -203,10 +203,10 @@ def get_calibrations(user_id=None):
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 # ---------------------------
-# PDF GENERATOR (LANDSCAPE + BEFORE–AFTER SEBELAHAN)
+# PDF GENERATOR (TABEL HORIZONTAL + BEFORE–AFTER DI BAWAH)
 # ---------------------------
 def generate_pdf(record, title):
-    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.add_page()
 
     # Judul
@@ -214,36 +214,57 @@ def generate_pdf(record, title):
     pdf.cell(0, 10, title, ln=True, align="C")
     pdf.ln(8)
 
-    # Data checklist
+    # Header Tabel
+    headers = ["Id", "User", "Date", "Machine", "Sub Area", "Shift", "Item", "Condition", "Note", "Created At", "Input By"]
+    col_widths = [10, 25, 20, 35, 25, 15, 25, 20, 35, 25, 25]
+
+    pdf.set_font("Arial", "B", 11)
+    for i, h in enumerate(headers):
+        pdf.cell(col_widths[i], 8, h, border=1, align='C')
+    pdf.ln()
+
+    # Isi Tabel
     pdf.set_font("Arial", "", 11)
-    for key, value in record.items():
-        if key not in ["image_before", "image_after"]:
-            pdf.cell(50, 8, f"{key.capitalize()}:", 0)
-            pdf.multi_cell(0, 8, str(value))
-    pdf.ln(5)
+    values = [
+        record.get("id", ""),
+        record.get("input_by", record.get("fullname", "")),
+        record.get("date", ""),
+        record.get("machine", ""),
+        record.get("sub_area", ""),
+        record.get("shift", ""),
+        record.get("item", ""),
+        record.get("condition", ""),
+        record.get("note", ""),
+        record.get("created_at", ""),
+        record.get("input_by", "")
+    ]
+    for i, val in enumerate(values):
+        pdf.multi_cell(col_widths[i], 8, str(val), border=1, align='C', ln=3 if i==0 else 0)
+        pdf.set_xy(pdf.get_x() + col_widths[i], pdf.get_y() - 8)
+    pdf.ln(8)
 
     # Gambar Before–After
     if record.get("image_before") or record.get("image_after"):
-        pdf.add_page()
         pdf.set_font("Arial", "B", 14)
         pdf.cell(0, 10, "Before vs After", ln=True, align="C")
+        pdf.ln(5)
 
-        img_w, img_h = 110, 85
-        y_pos = 40
+        img_w, img_h = 90, 80
+        y_pos = pdf.get_y()
 
         if record.get("image_before"):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 tmp.write(record["image_before"])
                 tmp.flush()
-                pdf.image(tmp.name, x=35, y=y_pos, w=img_w, h=img_h)
-                pdf.text(x=75, y=y_pos + img_h + 10, txt="Before")
+                pdf.image(tmp.name, x=25, y=y_pos, w=img_w, h=img_h)
+                pdf.text(x=55, y=y_pos + img_h + 5, txt="Before")
 
         if record.get("image_after"):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 tmp.write(record["image_after"])
                 tmp.flush()
-                pdf.image(tmp.name, x=160, y=y_pos, w=img_w, h=img_h)
-                pdf.text(x=200, y=y_pos + img_h + 10, txt="After")
+                pdf.image(tmp.name, x=120, y=y_pos, w=img_w, h=img_h)
+                pdf.text(x=150, y=y_pos + img_h + 5, txt="After")
 
     return pdf.output(dest="S").encode("latin-1")
 
