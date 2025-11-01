@@ -239,12 +239,12 @@ def generate_pdf(record, title):
         record.get("input_by", "")
     ]
     for i, val in enumerate(values):
-        pdf.multi_cell(col_widths[i], 8, str(val), border=1, align='C', ln=3 if i==0 else 0)
-        pdf.set_xy(pdf.get_x() + col_widths[i], pdf.get_y() - 8)
-    pdf.ln(8)
+        pdf.cell(col_widths[i], 8, str(val), border=1, align='C')
+    pdf.ln()
 
     # Gambar Before–After
     if record.get("image_before") or record.get("image_after"):
+        pdf.ln(5)
         pdf.set_font("Arial", "B", 14)
         pdf.cell(0, 10, "Before vs After", ln=True, align="C")
         pdf.ln(5)
