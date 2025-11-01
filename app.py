@@ -125,17 +125,15 @@ def save_checklist(user_id, date, machine, sub_area, shift, item, condition, not
         conn = get_conn()
         c = conn.cursor()
         date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)
-
         img_before_binary = image_before.read() if image_before else None
         img_after_binary = image_after.read() if image_after else None
-
         c.execute("""
             INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, image_before, image_after, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (user_id, date_str, machine, sub_area, shift, item, condition, note, img_before_binary, img_after_binary, datetime.utcnow().isoformat()))
         conn.commit()
         conn.close()
-        st.success(f"✅ Data berhasil disimpan!")
+        st.success("✅ Data berhasil disimpan!")
         return True
     except Exception as e:
         st.error(f"❌ Error menyimpan checklist: {e}")
@@ -152,7 +150,7 @@ def save_calibration(user_id, date, instrument, procedure, result, remarks):
         """, (user_id, date_str, instrument, procedure, result, remarks, datetime.utcnow().isoformat()))
         conn.commit()
         conn.close()
-        st.success(f"✅ Data berhasil disimpan!")
+        st.success("✅ Data berhasil disimpan!")
         return True
     except Exception as e:
         st.error(f"❌ Error menyimpan calibration: {e}")
@@ -205,45 +203,47 @@ def get_calibrations(user_id=None):
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 # ---------------------------
-# PDF GENERATOR (LANDSCAPE + SIDE BY SIDE)
+# PDF GENERATOR (LANDSCAPE + BEFORE–AFTER SEBELAHAN)
 # ---------------------------
 def generate_pdf(record, title):
     pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.add_page()
+
+    # Judul
     pdf.set_font("Arial", "B", 16)
     pdf.cell(0, 10, title, ln=True, align="C")
-    pdf.ln(5)
+    pdf.ln(8)
 
-    pdf.set_font("Arial", "", 12)
+    # Data checklist
+    pdf.set_font("Arial", "", 11)
     for key, value in record.items():
         if key not in ["image_before", "image_after"]:
-            pdf.cell(45, 8, f"{key.capitalize()}:", 0)
+            pdf.cell(50, 8, f"{key.capitalize()}:", 0)
             pdf.multi_cell(0, 8, str(value))
     pdf.ln(5)
-    pdf.cell(0, 6, "----------------------------------------------------", ln=True)
 
-    # tampilkan gambar before–after berdampingan
+    # Gambar Before–After
     if record.get("image_before") or record.get("image_after"):
         pdf.add_page()
         pdf.set_font("Arial", "B", 14)
         pdf.cell(0, 10, "Before vs After", ln=True, align="C")
 
-        img_w, img_h = 100, 75  # kecil agar muat dua
+        img_w, img_h = 110, 85
         y_pos = 40
 
         if record.get("image_before"):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 tmp.write(record["image_before"])
                 tmp.flush()
-                pdf.image(tmp.name, x=30, y=y_pos, w=img_w, h=img_h)
-                pdf.text(x=70, y=y_pos + img_h + 8, txt="Before")
+                pdf.image(tmp.name, x=35, y=y_pos, w=img_w, h=img_h)
+                pdf.text(x=75, y=y_pos + img_h + 10, txt="Before")
 
         if record.get("image_after"):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 tmp.write(record["image_after"])
                 tmp.flush()
                 pdf.image(tmp.name, x=160, y=y_pos, w=img_w, h=img_h)
-                pdf.text(x=200, y=y_pos + img_h + 8, txt="After")
+                pdf.text(x=200, y=y_pos + img_h + 10, txt="After")
 
     return pdf.output(dest="S").encode("latin-1")
 
@@ -260,7 +260,6 @@ def main():
 
     st.markdown("<div class='card'><h2>Maintenance & Calibration System</h2><p class='small-muted'>Gunakan akun yang sudah ditentukan.</p></div>", unsafe_allow_html=True)
 
-    # LOGIN
     if not st.session_state['auth']:
         conn = get_conn()
         usernames = pd.read_sql("SELECT username FROM users", conn)['username'].tolist()
@@ -318,7 +317,7 @@ def main():
         st.subheader("📋 Daftar Checklist")
         df = get_checklists() if user['role'] in ['admin', 'manager'] else get_checklists(user_id=user['id'])
         if not df.empty:
-            display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note'] + (['input_by'] if user['role'] in ['admin', 'manager'] else [])]
+            display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']]
             st.dataframe(display_df, use_container_width=True, hide_index=True)
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist())
             if sel:
@@ -345,7 +344,7 @@ def main():
         st.subheader("📋 Daftar Calibration")
         df = get_calibrations() if user['role'] in ['admin', 'manager'] else get_calibrations(user_id=user['id'])
         if not df.empty:
-            display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks'] + (['input_by'] if user['role'] in ['admin', 'manager'] else [])]
+            display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks']]
             st.dataframe(display_df, use_container_width=True, hide_index=True)
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist(), key="cal_sel")
             if sel:
@@ -360,16 +359,17 @@ def main():
         st.header("Admin Dashboard")
         st.subheader("Checklist Semua Pengguna")
         df_check = get_checklists()
-        st.dataframe(df_check[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'input_by']], use_container_width=True)
+        st.dataframe(df_check[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']], use_container_width=True)
 
         st.subheader("Calibration Semua Pengguna")
         df_cal = get_calibrations()
-        st.dataframe(df_cal[['id', 'date', 'instrument', 'procedure', 'result', 'remarks', 'input_by']], use_container_width=True)
+        st.dataframe(df_cal[['id', 'date', 'instrument', 'procedure', 'result', 'remarks']], use_container_width=True)
 
     if st.button("🚪 Logout"):
         st.session_state['auth'] = False
         st.session_state['user'] = None
         st.rerun()
+
 
 if __name__ == "__main__":
     main()
