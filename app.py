@@ -205,7 +205,7 @@ def get_calibrations(user_id=None):
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 # ---------------------------
-# PDF GENERATOR (LANDSCAPE BEFORE–AFTER)
+# PDF GENERATOR (LANDSCAPE + SIDE BY SIDE)
 # ---------------------------
 def generate_pdf(record, title):
     pdf = FPDF(orientation="L", unit="mm", format="A4")
@@ -222,28 +222,28 @@ def generate_pdf(record, title):
     pdf.ln(5)
     pdf.cell(0, 6, "----------------------------------------------------", ln=True)
 
-    # tampilkan gambar before–after di halaman landscape berdampingan
+    # tampilkan gambar before–after berdampingan
     if record.get("image_before") or record.get("image_after"):
         pdf.add_page()
         pdf.set_font("Arial", "B", 14)
         pdf.cell(0, 10, "Before vs After", ln=True, align="C")
 
-        img_w, img_h = 120, 90  # kecil agar muat dua
+        img_w, img_h = 100, 75  # kecil agar muat dua
         y_pos = 40
 
         if record.get("image_before"):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 tmp.write(record["image_before"])
                 tmp.flush()
-                pdf.image(tmp.name, x=20, y=y_pos, w=img_w, h=img_h)
-                pdf.text(x=65, y=y_pos + img_h + 8, txt="Before")
+                pdf.image(tmp.name, x=30, y=y_pos, w=img_w, h=img_h)
+                pdf.text(x=70, y=y_pos + img_h + 8, txt="Before")
 
         if record.get("image_after"):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 tmp.write(record["image_after"])
                 tmp.flush()
                 pdf.image(tmp.name, x=160, y=y_pos, w=img_w, h=img_h)
-                pdf.text(x=205, y=y_pos + img_h + 8, txt="After")
+                pdf.text(x=200, y=y_pos + img_h + 8, txt="After")
 
     return pdf.output(dest="S").encode("latin-1")
 
