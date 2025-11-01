@@ -203,7 +203,7 @@ def get_calibrations(user_id=None):
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 # ---------------------------
-# PDF GENERATOR (TABEL PORTRAIT, LEBAR KURANGI)
+# PDF GENERATOR (TABEL HORIZONTAL + BEFORE–AFTER DI BAWAH)
 # ---------------------------
 def generate_pdf(record, title):
     pdf = FPDF(orientation="P", unit="mm", format="A4")
@@ -216,7 +216,7 @@ def generate_pdf(record, title):
 
     # Header Tabel
     headers = ["Id", "User", "Date", "Machine", "Sub Area", "Shift", "Item", "Condition", "Note", "Created At", "Input By"]
-    col_widths = [8, 20, 18, 30, 20, 12, 20, 18, 30, 22, 22]  # total ~210 mm
+    col_widths = [10, 25, 20, 35, 25, 15, 25, 20, 35, 25, 25]
 
     pdf.set_font("Arial", "B", 11)
     for i, h in enumerate(headers):
@@ -263,7 +263,7 @@ def generate_pdf(record, title):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 tmp.write(record["image_after"])
                 tmp.flush()
-                pdf.image(tmp.name, x=125, y=y_pos, w=img_w, h=img_h)
+                pdf.image(tmp.name, x=120, y=y_pos, w=img_w, h=img_h)
                 pdf.text(x=150, y=y_pos + img_h + 5, txt="After")
 
     return pdf.output(dest="S").encode("latin-1")
