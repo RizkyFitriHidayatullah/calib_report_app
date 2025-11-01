@@ -203,28 +203,28 @@ def get_calibrations(user_id=None):
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 # ---------------------------
-# PDF GENERATOR (LANDSCAPE)
+# PDF GENERATOR (LANDSCAPE, FONT KECIL)
 # ---------------------------
 def generate_pdf(record, title):
-    pdf = FPDF(orientation="L", unit="mm", format="A4")  # LANDSCAPE
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.add_page()
 
     # Judul
-    pdf.set_font("Arial", "B", 16)
+    pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, title, ln=True, align="C")
-    pdf.ln(8)
+    pdf.ln(6)
 
     # Header Tabel
     headers = ["Id", "User", "Date", "Machine", "Sub Area", "Shift", "Item", "Condition", "Note", "Created At", "Input By"]
-    col_widths = [12, 30, 25, 40, 30, 20, 30, 25, 50, 30, 30]  # total ~342 mm landscape
+    col_widths = [12, 25, 20, 35, 28, 18, 28, 22, 45, 28, 28]  # landscape A4
 
-    pdf.set_font("Arial", "B", 11)
+    pdf.set_font("Arial", "B", 9)
     for i, h in enumerate(headers):
-        pdf.cell(col_widths[i], 8, h, border=1, align='C')
+        pdf.cell(col_widths[i], 7, h, border=1, align='C')
     pdf.ln()
 
     # Isi Tabel
-    pdf.set_font("Arial", "", 11)
+    pdf.set_font("Arial", "", 8)
     values = [
         record.get("id", ""),
         record.get("input_by", record.get("fullname", "")),
@@ -239,17 +239,17 @@ def generate_pdf(record, title):
         record.get("input_by", "")
     ]
     for i, val in enumerate(values):
-        pdf.cell(col_widths[i], 8, str(val), border=1, align='C')
+        pdf.cell(col_widths[i], 6, str(val), border=1, align='C')
     pdf.ln()
 
     # Gambar Before–After
     if record.get("image_before") or record.get("image_after"):
         pdf.ln(5)
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "Before vs After", ln=True, align="C")
-        pdf.ln(5)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Before vs After", ln=True, align="C")
+        pdf.ln(4)
 
-        img_w, img_h = 90, 80
+        img_w, img_h = 90, 70
         y_pos = pdf.get_y()
 
         if record.get("image_before"):
@@ -257,14 +257,14 @@ def generate_pdf(record, title):
                 tmp.write(record["image_before"])
                 tmp.flush()
                 pdf.image(tmp.name, x=30, y=y_pos, w=img_w, h=img_h)
-                pdf.text(x=65, y=y_pos + img_h + 5, txt="Before")
+                pdf.text(x=65, y=y_pos + img_h + 4, txt="Before")
 
         if record.get("image_after"):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 tmp.write(record["image_after"])
                 tmp.flush()
                 pdf.image(tmp.name, x=150, y=y_pos, w=img_w, h=img_h)
-                pdf.text(x=185, y=y_pos + img_h + 5, txt="After")
+                pdf.text(x=185, y=y_pos + img_h + 4, txt="After")
 
     return pdf.output(dest="S").encode("latin-1")
 
