@@ -216,7 +216,7 @@ def generate_pdf(record, title):
 
     # Header Tabel
     headers = ["Id", "User", "Date", "Machine", "Sub Area", "Shift", "Item", "Condition", "Note", "Created At", "Input By"]
-    col_widths = [12, 25, 20, 35, 28, 18, 28, 22, 45, 20, 28]  # landscape A4
+    col_widths = [12, 25, 20, 35, 28, 18, 28, 22, 45, 35, 28]  # landscape A4
 
     pdf.set_font("Arial", "B", 9)
     for i, h in enumerate(headers):
