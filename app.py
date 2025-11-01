@@ -203,10 +203,10 @@ def get_calibrations(user_id=None):
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 # ---------------------------
-# PDF GENERATOR (TABEL HORIZONTAL + BEFORE–AFTER DI BAWAH)
+# PDF GENERATOR (LANDSCAPE)
 # ---------------------------
 def generate_pdf(record, title):
-    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf = FPDF(orientation="L", unit="mm", format="A4")  # LANDSCAPE
     pdf.add_page()
 
     # Judul
@@ -216,7 +216,7 @@ def generate_pdf(record, title):
 
     # Header Tabel
     headers = ["Id", "User", "Date", "Machine", "Sub Area", "Shift", "Item", "Condition", "Note", "Created At", "Input By"]
-    col_widths = [10, 25, 20, 35, 25, 15, 25, 20, 35, 25, 25]
+    col_widths = [12, 30, 25, 40, 30, 20, 30, 25, 50, 30, 30]  # total ~342 mm landscape
 
     pdf.set_font("Arial", "B", 11)
     for i, h in enumerate(headers):
@@ -256,15 +256,15 @@ def generate_pdf(record, title):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 tmp.write(record["image_before"])
                 tmp.flush()
-                pdf.image(tmp.name, x=25, y=y_pos, w=img_w, h=img_h)
-                pdf.text(x=55, y=y_pos + img_h + 5, txt="Before")
+                pdf.image(tmp.name, x=30, y=y_pos, w=img_w, h=img_h)
+                pdf.text(x=65, y=y_pos + img_h + 5, txt="Before")
 
         if record.get("image_after"):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 tmp.write(record["image_after"])
                 tmp.flush()
-                pdf.image(tmp.name, x=120, y=y_pos, w=img_w, h=img_h)
-                pdf.text(x=150, y=y_pos + img_h + 5, txt="After")
+                pdf.image(tmp.name, x=150, y=y_pos, w=img_w, h=img_h)
+                pdf.text(x=185, y=y_pos + img_h + 5, txt="After")
 
     return pdf.output(dest="S").encode("latin-1")
 
