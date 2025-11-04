@@ -203,85 +203,48 @@ def get_calibrations(user_id=None):
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 # ---------------------------
-# PDF GENERATOR (LANDSCAPE, DIPERBAIKI)
+# PDF GENERATOR (LANDSCAPE, FONT KECIL)
 # ---------------------------
 def generate_pdf(record, title):
     pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.add_page()
 
     # Judul
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 12, title, ln=True, align="C")
-    pdf.ln(8)
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, title, ln=True, align="C")
+    pdf.ln(6)
 
-    # Header Tabel - DISESUAIKAN LEBAR KOLOM
-    if title == "Checklist Maintenance":
-        headers = ["Id", "Date", "Machine", "Sub Area", "Shift", "Item", "Condition", "Note"]
-        col_widths = [12, 25, 45, 35, 18, 30, 25, 77]  # Total = 267mm
-    else:  # Calibration
-        headers = ["Id", "Date", "Instrument", "Procedure", "Result", "Remarks"]
-        col_widths = [12, 25, 40, 85, 22, 83]  # Total = 267mm
+    # Header Tabel
+    headers = ["Id", "User", "Date", "Machine", "Sub Area", "Shift", "Item", "Condition", "Note", "Created At", "Input By"]
+    col_widths = [12, 25, 20, 35, 28, 18, 28, 22, 45, 35, 28]  # landscape A4
 
-    # Header dengan background
     pdf.set_font("Arial", "B", 9)
-    pdf.set_fill_color(220, 220, 220)
     for i, h in enumerate(headers):
-        pdf.cell(col_widths[i], 8, h, border=1, align='C', fill=True)
+        pdf.cell(col_widths[i], 7, h, border=1, align='C')
     pdf.ln()
 
     # Isi Tabel
     pdf.set_font("Arial", "", 8)
-    
-    if title == "Checklist Maintenance":
-        values = [
-            str(record.get("id", "")),
-            str(record.get("date", "")),
-            str(record.get("machine", ""))[:35],
-            str(record.get("sub_area", ""))[:25],
-            str(record.get("shift", "")),
-            str(record.get("item", ""))[:20],
-            str(record.get("condition", "")),
-            str(record.get("note", ""))[:150]
-        ]
-    else:  # Calibration
-        values = [
-            str(record.get("id", "")),
-            str(record.get("date", "")),
-            str(record.get("instrument", ""))[:30],
-            str(record.get("procedure", ""))[:160],
-            str(record.get("result", "")),
-            str(record.get("remarks", ""))[:150]
-        ]
-    
-    # Hitung tinggi baris yang dibutuhkan
-    max_lines = 1
+    values = [
+        record.get("id", ""),
+        record.get("input_by", record.get("fullname", "")),
+        record.get("date", ""),
+        record.get("machine", ""),
+        record.get("sub_area", ""),
+        record.get("shift", ""),
+        record.get("item", ""),
+        record.get("condition", ""),
+        record.get("note", ""),
+        record.get("created_at", ""),
+        record.get("input_by", "")
+    ]
     for i, val in enumerate(values):
-        chars_per_line = int(col_widths[i] / 2.3)
-        lines_needed = max(1, (len(val) // chars_per_line) + 1)
-        max_lines = max(max_lines, lines_needed)
-    
-    row_height = max(8, min(max_lines * 4, 25))
-    
-    # Print cells dengan multi_cell
-    x_start = pdf.get_x()
-    y_start = pdf.get_y()
-    
-    for i, val in enumerate(values):
-        pdf.set_xy(x_start + sum(col_widths[:i]), y_start)
-        pdf.multi_cell(col_widths[i], 4, val, border=1, align='L')
-    
-    pdf.set_xy(x_start, y_start + row_height)
-    pdf.ln(5)
+        pdf.cell(col_widths[i], 6, str(val), border=1, align='C')
+    pdf.ln()
 
-    # Informasi Tambahan
-    pdf.set_font("Arial", "I", 9)
-    pdf.cell(70, 6, f"Input By: {record.get('input_by', 'N/A')}", border=1, align='L')
-    pdf.cell(70, 6, f"Created At: {record.get('created_at', 'N/A')}", border=1, align='L')
-    pdf.ln(8)
-
-    # Gambar Before–After (khusus checklist)
-    if title == "Checklist Maintenance" and (record.get("image_before") or record.get("image_after")):
-        pdf.ln(3)
+    # Gambar Before–After
+    if record.get("image_before") or record.get("image_after"):
+        pdf.ln(5)
         pdf.set_font("Arial", "B", 12)
         pdf.cell(0, 8, "Before vs After", ln=True, align="C")
         pdf.ln(4)
@@ -290,26 +253,18 @@ def generate_pdf(record, title):
         y_pos = pdf.get_y()
 
         if record.get("image_before"):
-            try:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-                    tmp.write(record["image_before"])
-                    tmp.flush()
-                    pdf.image(tmp.name, x=30, y=y_pos, w=img_w, h=img_h)
-                    pdf.set_font("Arial", "B", 10)
-                    pdf.text(x=65, y=y_pos + img_h + 4, txt="Before")
-            except:
-                pass
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                tmp.write(record["image_before"])
+                tmp.flush()
+                pdf.image(tmp.name, x=30, y=y_pos, w=img_w, h=img_h)
+                pdf.text(x=65, y=y_pos + img_h + 4, txt="Before")
 
         if record.get("image_after"):
-            try:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-                    tmp.write(record["image_after"])
-                    tmp.flush()
-                    pdf.image(tmp.name, x=150, y=y_pos, w=img_w, h=img_h)
-                    pdf.set_font("Arial", "B", 10)
-                    pdf.text(x=185, y=y_pos + img_h + 4, txt="After")
-            except:
-                pass
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                tmp.write(record["image_after"])
+                tmp.flush()
+                pdf.image(tmp.name, x=150, y=y_pos, w=img_w, h=img_h)
+                pdf.text(x=185, y=y_pos + img_h + 4, txt="After")
 
     return pdf.output(dest="S").encode("latin-1")
 
@@ -436,6 +391,7 @@ def main():
         st.session_state['user'] = None
         st.rerun()
 
-
 if __name__ == "__main__":
     main()
+
+
