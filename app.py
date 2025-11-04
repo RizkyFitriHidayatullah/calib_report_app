@@ -1,6 +1,7 @@
 import streamlit as st
 import sqlite3
 from datetime import datetime
+import pytz
 from fpdf import FPDF
 import hashlib
 import pandas as pd
@@ -128,8 +129,9 @@ def save_checklist(user_id, date, machine, sub_area, shift, item, condition, not
         img_before_binary = image_before.read() if image_before else None
         img_after_binary = image_after.read() if image_after else None
         
-        # Gunakan waktu lokal saat ini
-        now = datetime.now()
+        # Gunakan waktu Singapore (UTC+8)
+        singapore_tz = pytz.timezone('Asia/Singapore')
+        now = datetime.now(singapore_tz)
         
         c.execute("""
             INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, image_before, image_after, created_at)
@@ -149,8 +151,9 @@ def save_calibration(user_id, date, instrument, procedure, result, remarks):
         c = conn.cursor()
         date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)
         
-        # Gunakan waktu lokal saat ini
-        now = datetime.now()
+        # Gunakan waktu Singapore (UTC+8)
+        singapore_tz = pytz.timezone('Asia/Singapore')
+        now = datetime.now(singapore_tz)
         
         c.execute("""
             INSERT INTO calibration (user_id, date, instrument, procedure, result, remarks, created_at)
