@@ -402,7 +402,20 @@ def generate_pdf(record, title):
     if record.get("approval_status") == "Approved":
         pdf.set_font("Arial", "B", 9)
         pdf.set_fill_color(200, 255, 200)
-        pdf.cell(0, 6, f"✓ Approved by: {record.get('approved_by', 'N/A')} at {record.get('approved_at', 'N/A')}", fill=True, align='L')
+        approved_by = str(record.get('approved_by', 'N/A'))
+        approved_at_raw = record.get('approved_at', 'N/A')
+        
+        # Format approved_at
+        if approved_at_raw and approved_at_raw != 'N/A':
+            try:
+                dt = datetime.fromisoformat(approved_at_raw)
+                approved_at = dt.strftime("%Y-%m-%d %H:%M")
+            except:
+                approved_at = str(approved_at_raw)
+        else:
+            approved_at = 'N/A'
+        
+        pdf.cell(0, 6, f"[APPROVED] by: {approved_by} at {approved_at}", fill=True, align='L')
         pdf.ln(8)
 
     # Gambar Before–After (khusus checklist)
