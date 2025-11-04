@@ -607,6 +607,6 @@ def main():
         st.session_state['user'] = None
         st.rerun()
 
-
 if __name__ == "__main__":
     main()
+
