@@ -127,10 +127,14 @@ def save_checklist(user_id, date, machine, sub_area, shift, item, condition, not
         date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)
         img_before_binary = image_before.read() if image_before else None
         img_after_binary = image_after.read() if image_after else None
+        
+        # Gunakan waktu lokal saat ini
+        now = datetime.now()
+        
         c.execute("""
             INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, image_before, image_after, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, date_str, machine, sub_area, shift, item, condition, note, img_before_binary, img_after_binary, datetime.utcnow().isoformat()))
+        """, (user_id, date_str, machine, sub_area, shift, item, condition, note, img_before_binary, img_after_binary, now.isoformat()))
         conn.commit()
         conn.close()
         st.success("✅ Data berhasil disimpan!")
@@ -144,10 +148,14 @@ def save_calibration(user_id, date, instrument, procedure, result, remarks):
         conn = get_conn()
         c = conn.cursor()
         date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)
+        
+        # Gunakan waktu lokal saat ini
+        now = datetime.now()
+        
         c.execute("""
             INSERT INTO calibration (user_id, date, instrument, procedure, result, remarks, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, date_str, instrument, procedure, result, remarks, datetime.utcnow().isoformat()))
+        """, (user_id, date_str, instrument, procedure, result, remarks, now.isoformat()))
         conn.commit()
         conn.close()
         st.success("✅ Data berhasil disimpan!")
@@ -216,11 +224,11 @@ def generate_pdf(record, title):
 
     # Header Tabel - DISESUAIKAN LEBAR KOLOM
     if title == "Checklist Maintenance":
-        headers = ["Id", "Date & Time", "Machine", "Sub Area", "Shift", "Item", "Condition", "Note"]
-        col_widths = [12, 35, 45, 35, 18, 30, 25, 67]  # Total = 267mm
+        headers = ["Id", "User", "Date & Time", "Machine", "Sub Area", "Shift", "Item", "Condition", "Note"]
+        col_widths = [10, 23, 32, 40, 30, 16, 26, 22, 68]  # Total = 267mm
     else:  # Calibration
-        headers = ["Id", "Date & Time", "Instrument", "Procedure", "Result", "Remarks"]
-        col_widths = [12, 35, 40, 85, 22, 73]  # Total = 267mm
+        headers = ["Id", "User", "Date & Time", "Instrument", "Procedure", "Result", "Remarks"]
+        col_widths = [10, 23, 32, 38, 80, 20, 64]  # Total = 267mm
 
     # Header dengan background
     pdf.set_font("Arial", "B", 9)
@@ -243,25 +251,30 @@ def generate_pdf(record, title):
     else:
         datetime_str = str(record.get("date", ""))
     
+    # Ambil username
+    user_name = str(record.get("input_by", ""))[:18]
+    
     if title == "Checklist Maintenance":
         values = [
             str(record.get("id", "")),
+            user_name,
             datetime_str,
-            str(record.get("machine", ""))[:35],
-            str(record.get("sub_area", ""))[:25],
+            str(record.get("machine", ""))[:32],
+            str(record.get("sub_area", ""))[:22],
             str(record.get("shift", "")),
-            str(record.get("item", ""))[:20],
+            str(record.get("item", ""))[:18],
             str(record.get("condition", "")),
-            str(record.get("note", ""))[:150]
+            str(record.get("note", ""))[:140]
         ]
     else:  # Calibration
         values = [
             str(record.get("id", "")),
+            user_name,
             datetime_str,
-            str(record.get("instrument", ""))[:30],
-            str(record.get("procedure", ""))[:160],
+            str(record.get("instrument", ""))[:28],
+            str(record.get("procedure", ""))[:150],
             str(record.get("result", "")),
-            str(record.get("remarks", ""))[:150]
+            str(record.get("remarks", ""))[:130]
         ]
     
     # Hitung tinggi baris yang dibutuhkan
@@ -282,7 +295,7 @@ def generate_pdf(record, title):
         pdf.multi_cell(col_widths[i], 4, val, border=1, align='L')
     
     pdf.set_xy(x_start, y_start + row_height)
-    pdf.ln(3)
+    pdf.ln(8)
 
     # Gambar Before–After (khusus checklist)
     if title == "Checklist Maintenance" and (record.get("image_before") or record.get("image_after")):
