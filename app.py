@@ -134,7 +134,7 @@ def init_db():
         ("admin", "admin123", "Admin", "admin"),
         ("manager", "manager123", "Manager", "manager"),
         ("operator", "operator123", "Operator", "operator")
-        ("RizkyFH", "Rizky123", "Rizky", "Rizky")
+        
     ]
     for username, password, fullname, role in default_users:
         try:
