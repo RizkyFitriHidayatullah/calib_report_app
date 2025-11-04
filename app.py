@@ -76,7 +76,10 @@ def init_db():
         note TEXT,
         image_before BLOB,
         image_after BLOB,
-        created_at TEXT
+        created_at TEXT,
+        approved_by TEXT,
+        approved_at TEXT,
+        approval_status TEXT DEFAULT 'Pending'
     )""")
 
     c.execute("""
@@ -88,7 +91,10 @@ def init_db():
         procedure TEXT,
         result TEXT,
         remarks TEXT,
-        created_at TEXT
+        created_at TEXT,
+        approved_by TEXT,
+        approved_at TEXT,
+        approval_status TEXT DEFAULT 'Pending'
     )""")
 
     default_users = [
@@ -187,7 +193,7 @@ def get_checklists(user_id=None):
         """)
     rows = c.fetchall()
     conn.close()
-    cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "image_before", "image_after", "created_at", "input_by"]
+    cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "image_before", "image_after", "created_at", "approved_by", "approved_at", "approval_status", "input_by"]
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 def get_calibrations(user_id=None):
@@ -210,8 +216,44 @@ def get_calibrations(user_id=None):
         """)
     rows = c.fetchall()
     conn.close()
-    cols = ["id", "user_id", "date", "instrument", "procedure", "result", "remarks", "created_at", "input_by"]
+    cols = ["id", "user_id", "date", "instrument", "procedure", "result", "remarks", "created_at", "approved_by", "approved_at", "approval_status", "input_by"]
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
+
+def approve_checklist(checklist_id, manager_name):
+    try:
+        conn = get_conn()
+        c = conn.cursor()
+        singapore_tz = pytz.timezone('Asia/Singapore')
+        now = datetime.now(singapore_tz)
+        c.execute("""
+            UPDATE checklist 
+            SET approval_status = 'Approved', approved_by = ?, approved_at = ?
+            WHERE id = ?
+        """, (manager_name, now.isoformat(), checklist_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"❌ Error approve: {e}")
+        return False
+
+def approve_calibration(calibration_id, manager_name):
+    try:
+        conn = get_conn()
+        c = conn.cursor()
+        singapore_tz = pytz.timezone('Asia/Singapore')
+        now = datetime.now(singapore_tz)
+        c.execute("""
+            UPDATE calibration 
+            SET approval_status = 'Approved', approved_by = ?, approved_at = ?
+            WHERE id = ?
+        """, (manager_name, now.isoformat(), calibration_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"❌ Error approve: {e}")
+        return False
 
 # ---------------------------
 # PDF GENERATOR (LANDSCAPE, DIPERBAIKI)
@@ -227,11 +269,11 @@ def generate_pdf(record, title):
 
     # Header Tabel - DISESUAIKAN LEBAR KOLOM
     if title == "Checklist Maintenance":
-        headers = ["Id", "User", "Date & Time", "Machine", "Sub Area", "Shift", "Item", "Condition", "Note"]
-        col_widths = [10, 23, 32, 40, 30, 16, 26, 22, 68]  # Total = 267mm
+        headers = ["Id", "User", "Date & Time", "Machine", "Sub Area", "Shift", "Item", "Condition", "Note", "Status"]
+        col_widths = [10, 20, 30, 37, 28, 15, 24, 20, 60, 23]  # Total = 267mm
     else:  # Calibration
-        headers = ["Id", "User", "Date & Time", "Instrument", "Procedure", "Result", "Remarks"]
-        col_widths = [10, 23, 32, 38, 80, 20, 64]  # Total = 267mm
+        headers = ["Id", "User", "Date & Time", "Instrument", "Procedure", "Result", "Remarks", "Status"]
+        col_widths = [10, 20, 30, 35, 70, 20, 60, 22]  # Total = 267mm
 
     # Header dengan background
     pdf.set_font("Arial", "B", 9)
@@ -257,27 +299,32 @@ def generate_pdf(record, title):
     # Ambil username
     user_name = str(record.get("input_by", ""))[:18]
     
+    # Ambil status approval
+    approval_status = str(record.get("approval_status", "Pending"))
+    
     if title == "Checklist Maintenance":
         values = [
             str(record.get("id", "")),
             user_name,
             datetime_str,
-            str(record.get("machine", ""))[:32],
-            str(record.get("sub_area", ""))[:22],
+            str(record.get("machine", ""))[:30],
+            str(record.get("sub_area", ""))[:20],
             str(record.get("shift", "")),
-            str(record.get("item", ""))[:18],
+            str(record.get("item", ""))[:16],
             str(record.get("condition", "")),
-            str(record.get("note", ""))[:140]
+            str(record.get("note", ""))[:120],
+            approval_status
         ]
     else:  # Calibration
         values = [
             str(record.get("id", "")),
             user_name,
             datetime_str,
-            str(record.get("instrument", ""))[:28],
-            str(record.get("procedure", ""))[:150],
+            str(record.get("instrument", ""))[:26],
+            str(record.get("procedure", ""))[:130],
             str(record.get("result", "")),
-            str(record.get("remarks", ""))[:130]
+            str(record.get("remarks", ""))[:110],
+            approval_status
         ]
     
     # Hitung tinggi baris yang dibutuhkan
@@ -299,6 +346,13 @@ def generate_pdf(record, title):
     
     pdf.set_xy(x_start, y_start + row_height)
     pdf.ln(8)
+
+    # Informasi Approval (jika sudah diapprove)
+    if record.get("approval_status") == "Approved":
+        pdf.set_font("Arial", "B", 9)
+        pdf.set_fill_color(200, 255, 200)
+        pdf.cell(0, 6, f"✓ Approved by: {record.get('approved_by', 'N/A')} at {record.get('approved_at', 'N/A')}", fill=True, align='L')
+        pdf.ln(8)
 
     # Gambar Before–After (khusus checklist)
     if title == "Checklist Maintenance" and (record.get("image_before") or record.get("image_after")):
@@ -404,8 +458,23 @@ def main():
         st.subheader("📋 Daftar Checklist")
         df = get_checklists() if user['role'] in ['admin', 'manager'] else get_checklists(user_id=user['id'])
         if not df.empty:
-            display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']]
+            display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'approval_status']]
             st.dataframe(display_df, use_container_width=True, hide_index=True)
+            
+            # Fitur Approval untuk Manager
+            if user['role'] == 'manager':
+                st.markdown("### ✅ Approval Checklist")
+                pending_df = df[df['approval_status'] == 'Pending']
+                if not pending_df.empty:
+                    col1, col2 = st.columns([3, 1])
+                    sel_approve = col1.selectbox("Pilih ID untuk Approve", [""] + pending_df['id'].astype(str).tolist(), key="approve_checklist")
+                    if sel_approve and col2.button("✅ Approve", key="btn_approve_checklist"):
+                        if approve_checklist(int(sel_approve), user['fullname']):
+                            st.success(f"✅ Checklist ID {sel_approve} berhasil di-approve!")
+                            st.rerun()
+                else:
+                    st.info("Semua checklist sudah di-approve")
+            
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist())
             if sel:
                 rec = df[df['id'] == int(sel)].iloc[0].to_dict()
@@ -431,8 +500,23 @@ def main():
         st.subheader("📋 Daftar Calibration")
         df = get_calibrations() if user['role'] in ['admin', 'manager'] else get_calibrations(user_id=user['id'])
         if not df.empty:
-            display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks']]
+            display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks', 'approval_status']]
             st.dataframe(display_df, use_container_width=True, hide_index=True)
+            
+            # Fitur Approval untuk Manager
+            if user['role'] == 'manager':
+                st.markdown("### ✅ Approval Calibration")
+                pending_df = df[df['approval_status'] == 'Pending']
+                if not pending_df.empty:
+                    col1, col2 = st.columns([3, 1])
+                    sel_approve = col1.selectbox("Pilih ID untuk Approve", [""] + pending_df['id'].astype(str).tolist(), key="approve_calibration")
+                    if sel_approve and col2.button("✅ Approve", key="btn_approve_calibration"):
+                        if approve_calibration(int(sel_approve), user['fullname']):
+                            st.success(f"✅ Calibration ID {sel_approve} berhasil di-approve!")
+                            st.rerun()
+                else:
+                    st.info("Semua calibration sudah di-approve")
+            
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist(), key="cal_sel")
             if sel:
                 rec = df[df['id'] == int(sel)].iloc[0].to_dict()
@@ -444,13 +528,15 @@ def main():
     # === Admin Dashboard ===
     elif menu == "Admin Dashboard":
         st.header("Admin Dashboard")
-        st.subheader("Checklist Semua Pengguna")
+        st.subheader("📋 Checklist Semua Pengguna")
         df_check = get_checklists()
-        st.dataframe(df_check[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note']], use_container_width=True)
+        if not df_check.empty:
+            st.dataframe(df_check[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'approval_status']], use_container_width=True)
 
-        st.subheader("Calibration Semua Pengguna")
+        st.subheader("📋 Calibration Semua Pengguna")
         df_cal = get_calibrations()
-        st.dataframe(df_cal[['id', 'date', 'instrument', 'procedure', 'result', 'remarks']], use_container_width=True)
+        if not df_cal.empty:
+            st.dataframe(df_cal[['id', 'date', 'instrument', 'procedure', 'result', 'remarks', 'approval_status']], use_container_width=True)
 
     if st.button("🚪 Logout"):
         st.session_state['auth'] = False
