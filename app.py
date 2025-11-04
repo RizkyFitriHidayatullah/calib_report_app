@@ -97,6 +97,39 @@ def init_db():
         approval_status TEXT DEFAULT 'Pending'
     )""")
 
+    # Tambahkan kolom baru jika belum ada (untuk database lama)
+    try:
+        c.execute("ALTER TABLE checklist ADD COLUMN approved_by TEXT")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE checklist ADD COLUMN approved_at TEXT")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE checklist ADD COLUMN approval_status TEXT DEFAULT 'Pending'")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE calibration ADD COLUMN approved_by TEXT")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE calibration ADD COLUMN approved_at TEXT")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE calibration ADD COLUMN approval_status TEXT DEFAULT 'Pending'")
+    except:
+        pass
+
+    # Update existing records dengan status Pending jika NULL
+    try:
+        c.execute("UPDATE checklist SET approval_status = 'Pending' WHERE approval_status IS NULL")
+        c.execute("UPDATE calibration SET approval_status = 'Pending' WHERE approval_status IS NULL")
+    except:
+        pass
+
     default_users = [
         ("admin", "admin123", "Admin", "admin"),
         ("manager", "manager123", "Manager", "manager"),
@@ -107,7 +140,7 @@ def init_db():
             c.execute("""
                 INSERT INTO users (username, password_hash, fullname, role, created_at)
                 VALUES (?, ?, ?, ?, ?)
-            """, (username, hashlib.sha256((password+'salt2025').encode()).hexdigest(), fullname, role, datetime.utcnow().isoformat()))
+            """, (username, hashlib.sha256((password+'salt2025').encode()).hexdigest(), fullname, role, datetime.now(pytz.timezone('Asia/Singapore')).isoformat()))
         except sqlite3.IntegrityError:
             pass
 
@@ -178,7 +211,12 @@ def get_checklists(user_id=None):
     c = conn.cursor()
     if user_id:
         c.execute("""
-            SELECT c.*, u.fullname 
+            SELECT c.id, c.user_id, c.date, c.machine, c.sub_area, c.shift, c.item, c.condition, c.note, 
+                   c.image_before, c.image_after, c.created_at, 
+                   COALESCE(c.approved_by, '') as approved_by, 
+                   COALESCE(c.approved_at, '') as approved_at, 
+                   COALESCE(c.approval_status, 'Pending') as approval_status,
+                   u.fullname as input_by
             FROM checklist c 
             LEFT JOIN users u ON c.user_id = u.id 
             WHERE c.user_id=? 
@@ -186,7 +224,12 @@ def get_checklists(user_id=None):
         """, (user_id,))
     else:
         c.execute("""
-            SELECT c.*, u.fullname 
+            SELECT c.id, c.user_id, c.date, c.machine, c.sub_area, c.shift, c.item, c.condition, c.note, 
+                   c.image_before, c.image_after, c.created_at, 
+                   COALESCE(c.approved_by, '') as approved_by, 
+                   COALESCE(c.approved_at, '') as approved_at, 
+                   COALESCE(c.approval_status, 'Pending') as approval_status,
+                   u.fullname as input_by
             FROM checklist c 
             LEFT JOIN users u ON c.user_id = u.id 
             ORDER BY c.date DESC, c.id DESC
@@ -201,7 +244,11 @@ def get_calibrations(user_id=None):
     c = conn.cursor()
     if user_id:
         c.execute("""
-            SELECT c.*, u.fullname 
+            SELECT c.id, c.user_id, c.date, c.instrument, c.procedure, c.result, c.remarks, c.created_at,
+                   COALESCE(c.approved_by, '') as approved_by, 
+                   COALESCE(c.approved_at, '') as approved_at, 
+                   COALESCE(c.approval_status, 'Pending') as approval_status,
+                   u.fullname as input_by
             FROM calibration c 
             LEFT JOIN users u ON c.user_id = u.id 
             WHERE c.user_id=? 
@@ -209,7 +256,11 @@ def get_calibrations(user_id=None):
         """, (user_id,))
     else:
         c.execute("""
-            SELECT c.*, u.fullname 
+            SELECT c.id, c.user_id, c.date, c.instrument, c.procedure, c.result, c.remarks, c.created_at,
+                   COALESCE(c.approved_by, '') as approved_by, 
+                   COALESCE(c.approved_at, '') as approved_at, 
+                   COALESCE(c.approval_status, 'Pending') as approval_status,
+                   u.fullname as input_by
             FROM calibration c 
             LEFT JOIN users u ON c.user_id = u.id 
             ORDER BY c.date DESC, c.id DESC
