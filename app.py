@@ -747,6 +747,15 @@ def main():
                         
                         if user.get('signature'):
                             st.success("✅ Menggunakan tanda tangan tersimpan dari profile")
+                            
+                            # Preview signature tersimpan
+                            try:
+                                sig_bytes = user['signature']
+                                if isinstance(sig_bytes, bytes) and len(sig_bytes) > 0:
+                                    st.image(sig_bytes, width=200, caption="Preview Tanda Tangan Tersimpan")
+                            except:
+                                pass
+                            
                             use_saved = st.checkbox("Gunakan tanda tangan tersimpan", value=True, key="use_saved_sig_check")
                             
                             if not use_saved:
@@ -760,9 +769,13 @@ def main():
                             signature_to_use = signature_upload.read() if signature_upload else None
                         
                         if signature_to_use and col2.button("✅ Approve", key="btn_approve_checklist"):
-                            if approve_checklist(int(sel_approve), user['fullname'], signature_to_use):
-                                st.success(f"✅ Checklist ID {sel_approve} berhasil di-approve dengan tanda tangan!")
-                                st.rerun()
+                            # Debug: cek apakah signature ada
+                            if isinstance(signature_to_use, bytes) and len(signature_to_use) > 0:
+                                if approve_checklist(int(sel_approve), user['fullname'], signature_to_use):
+                                    st.success(f"✅ Checklist ID {sel_approve} berhasil di-approve dengan tanda tangan!")
+                                    st.rerun()
+                            else:
+                                st.error("❌ Data tanda tangan tidak valid!")
                         elif not signature_to_use and col2.button("✅ Approve", key="btn_approve_checklist_no_sig"):
                             st.error("❌ Harap upload tanda tangan terlebih dahulu!")
                 else:
@@ -773,6 +786,15 @@ def main():
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist(), key="pdf_checklist")
             if sel:
                 rec = df[df['id'] == int(sel)].iloc[0].to_dict()
+                
+                # Debug info untuk melihat apakah signature ada
+                if rec.get('approval_status') == 'Approved':
+                    sig_data = rec.get('signature')
+                    if sig_data and isinstance(sig_data, bytes) and len(sig_data) > 0:
+                        st.success(f"✅ Data ini memiliki tanda tangan (Size: {len(sig_data)} bytes)")
+                    else:
+                        st.warning("⚠️ Data ini sudah di-approve tapi tidak ada tanda tangan. Silakan approve ulang untuk menambah tanda tangan.")
+                
                 pdf_bytes = generate_pdf(rec, "Checklist Maintenance")
                 st.download_button("📄 Download PDF", data=pdf_bytes, file_name=f"checklist_{sel}.pdf", mime="application/pdf")
         else:
@@ -821,6 +843,15 @@ def main():
                         
                         if user.get('signature'):
                             st.success("✅ Menggunakan tanda tangan tersimpan dari profile")
+                            
+                            # Preview signature tersimpan
+                            try:
+                                sig_bytes = user['signature']
+                                if isinstance(sig_bytes, bytes) and len(sig_bytes) > 0:
+                                    st.image(sig_bytes, width=200, caption="Preview Tanda Tangan Tersimpan")
+                            except:
+                                pass
+                            
                             use_saved = st.checkbox("Gunakan tanda tangan tersimpan", value=True, key="use_saved_sig_cal")
                             
                             if not use_saved:
@@ -834,9 +865,13 @@ def main():
                             signature_to_use = signature_upload.read() if signature_upload else None
                         
                         if signature_to_use and col2.button("✅ Approve", key="btn_approve_calibration"):
-                            if approve_calibration(int(sel_approve), user['fullname'], signature_to_use):
-                                st.success(f"✅ Calibration ID {sel_approve} berhasil di-approve dengan tanda tangan!")
-                                st.rerun()
+                            # Debug: cek apakah signature ada
+                            if isinstance(signature_to_use, bytes) and len(signature_to_use) > 0:
+                                if approve_calibration(int(sel_approve), user['fullname'], signature_to_use):
+                                    st.success(f"✅ Calibration ID {sel_approve} berhasil di-approve dengan tanda tangan!")
+                                    st.rerun()
+                            else:
+                                st.error("❌ Data tanda tangan tidak valid!")
                         elif not signature_to_use and col2.button("✅ Approve", key="btn_approve_calibration_no_sig"):
                             st.error("❌ Harap upload tanda tangan terlebih dahulu!")
                 else:
@@ -847,6 +882,15 @@ def main():
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist(), key="pdf_cal")
             if sel:
                 rec = df[df['id'] == int(sel)].iloc[0].to_dict()
+                
+                # Debug info untuk melihat apakah signature ada
+                if rec.get('approval_status') == 'Approved':
+                    sig_data = rec.get('signature')
+                    if sig_data and isinstance(sig_data, bytes) and len(sig_data) > 0:
+                        st.success(f"✅ Data ini memiliki tanda tangan (Size: {len(sig_data)} bytes)")
+                    else:
+                        st.warning("⚠️ Data ini sudah di-approve tapi tidak ada tanda tangan. Silakan approve ulang untuk menambah tanda tangan.")
+                
                 pdf_bytes = generate_pdf(rec, "Calibration Report")
                 st.download_button("📄 Download PDF", data=pdf_bytes, file_name=f"calibration_{sel}.pdf", mime="application/pdf")
         else:
