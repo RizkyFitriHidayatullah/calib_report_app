@@ -441,28 +441,51 @@ def generate_pdf(record, title):
         
         # Box untuk approval info
         pdf.set_font("Arial", "", 9)
-        pdf.cell(60, 6, f"Approved by: {approved_by}", border=1, align='L')
-        pdf.cell(60, 6, f"Date: {approved_at}", border=1, align='L')
-        pdf.ln()
+        x_pos = pdf.get_x()
+        y_pos = pdf.get_y()
+        
+        # Info boxes
+        pdf.cell(70, 8, f"Approved by: {approved_by}", border=1, align='L')
+        pdf.cell(70, 8, f"Date: {approved_at}", border=1, align='L')
+        pdf.ln(10)
         
         # Tanda tangan jika ada
-        if record.get("signature"):
+        signature_data = record.get("signature")
+        if signature_data and signature_data != b'':
             try:
-                pdf.ln(2)
-                pdf.set_font("Arial", "I", 8)
-                pdf.cell(60, 4, "Signature:", align='L')
-                pdf.ln(6)
+                pdf.set_font("Arial", "B", 9)
+                pdf.cell(40, 6, "Signature:", border=0, align='L')
+                pdf.ln(8)
                 
+                # Simpan signature ke temporary file
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-                    tmp.write(record["signature"])
+                    if isinstance(signature_data, bytes):
+                        tmp.write(signature_data)
+                    else:
+                        tmp.write(bytes(signature_data))
                     tmp.flush()
-                    pdf.image(tmp.name, x=pdf.get_x() + 5, y=pdf.get_y(), w=50, h=20)
-                pdf.ln(22)
+                    tmp_path = tmp.name
+                
+                # Tambahkan gambar signature
+                current_x = pdf.get_x()
+                current_y = pdf.get_y()
+                pdf.image(tmp_path, x=current_x + 10, y=current_y, w=60, h=25)
+                pdf.ln(28)
+                
+                # Garis bawah signature
+                pdf.set_draw_color(0, 0, 0)
+                pdf.line(current_x + 10, current_y + 25, current_x + 70, current_y + 25)
+                
             except Exception as e:
-                pdf.cell(60, 6, "[Signature not available]", border=0, align='L')
+                pdf.set_font("Arial", "I", 8)
+                pdf.cell(0, 6, f"[Signature error: Unable to display]", align='L')
                 pdf.ln()
+        else:
+            pdf.set_font("Arial", "I", 8)
+            pdf.cell(0, 6, "[Digital signature will appear here after approval]", align='L')
+            pdf.ln()
         
-        pdf.ln(3)
+        pdf.ln(5)
 
     # Gambar Before-After
     if title == "Checklist Maintenance" and (record.get("image_before") or record.get("image_after")):
