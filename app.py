@@ -306,15 +306,31 @@ def approve_checklist(checklist_id, manager_name, signature_data):
         c = conn.cursor()
         singapore_tz = pytz.timezone('Asia/Singapore')
         now = datetime.now(singapore_tz)
+        
+        # Debug: print info
+        print(f"Approving checklist {checklist_id}")
+        print(f"Signature data type: {type(signature_data)}")
+        print(f"Signature data length: {len(signature_data) if signature_data else 0}")
+        
         c.execute("""
             UPDATE checklist 
             SET approval_status = 'Approved', approved_by = ?, approved_at = ?, signature = ?
             WHERE id = ?
         """, (manager_name, now.isoformat(), signature_data, checklist_id))
+        
+        # Verify signature was saved
+        c.execute("SELECT signature FROM checklist WHERE id = ?", (checklist_id,))
+        result = c.fetchone()
+        if result and result[0]:
+            print(f"Signature saved successfully. Size: {len(result[0])} bytes")
+        else:
+            print("WARNING: Signature not saved!")
+        
         conn.commit()
         conn.close()
         return True
     except Exception as e:
+        print(f"Error in approve_checklist: {e}")
         st.error(f"❌ Error approve: {e}")
         return False
 
@@ -324,15 +340,31 @@ def approve_calibration(calibration_id, manager_name, signature_data):
         c = conn.cursor()
         singapore_tz = pytz.timezone('Asia/Singapore')
         now = datetime.now(singapore_tz)
+        
+        # Debug: print info
+        print(f"Approving calibration {calibration_id}")
+        print(f"Signature data type: {type(signature_data)}")
+        print(f"Signature data length: {len(signature_data) if signature_data else 0}")
+        
         c.execute("""
             UPDATE calibration 
             SET approval_status = 'Approved', approved_by = ?, approved_at = ?, signature = ?
             WHERE id = ?
         """, (manager_name, now.isoformat(), signature_data, calibration_id))
+        
+        # Verify signature was saved
+        c.execute("SELECT signature FROM calibration WHERE id = ?", (calibration_id,))
+        result = c.fetchone()
+        if result and result[0]:
+            print(f"Signature saved successfully. Size: {len(result[0])} bytes")
+        else:
+            print("WARNING: Signature not saved!")
+        
         conn.commit()
         conn.close()
         return True
     except Exception as e:
+        print(f"Error in approve_calibration: {e}")
         st.error(f"❌ Error approve: {e}")
         return False
 
@@ -451,38 +483,46 @@ def generate_pdf(record, title):
         
         # Tanda tangan jika ada
         signature_data = record.get("signature")
-        if signature_data and signature_data != b'':
+        pdf.set_font("Arial", "B", 9)
+        pdf.cell(40, 6, "Signature:", border=0, align='L')
+        pdf.ln(8)
+        
+        signature_displayed = False
+        
+        if signature_data:
             try:
-                pdf.set_font("Arial", "B", 9)
-                pdf.cell(40, 6, "Signature:", border=0, align='L')
-                pdf.ln(8)
+                # Convert ke bytes jika perlu
+                if not isinstance(signature_data, bytes):
+                    signature_data = bytes(signature_data)
                 
-                # Simpan signature ke temporary file
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-                    if isinstance(signature_data, bytes):
+                if len(signature_data) > 0:
+                    # Simpan signature ke temporary file
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".png", mode='wb') as tmp:
                         tmp.write(signature_data)
-                    else:
-                        tmp.write(bytes(signature_data))
-                    tmp.flush()
-                    tmp_path = tmp.name
-                
-                # Tambahkan gambar signature
-                current_x = pdf.get_x()
-                current_y = pdf.get_y()
-                pdf.image(tmp_path, x=current_x + 10, y=current_y, w=60, h=25)
-                pdf.ln(28)
-                
-                # Garis bawah signature
-                pdf.set_draw_color(0, 0, 0)
-                pdf.line(current_x + 10, current_y + 25, current_x + 70, current_y + 25)
-                
+                        tmp.flush()
+                        tmp_path = tmp.name
+                    
+                    # Tambahkan gambar signature
+                    current_x = pdf.get_x()
+                    current_y = pdf.get_y()
+                    
+                    try:
+                        pdf.image(tmp_path, x=current_x + 10, y=current_y, w=60, h=25)
+                        signature_displayed = True
+                        pdf.ln(28)
+                        
+                        # Garis bawah signature
+                        pdf.set_draw_color(0, 0, 0)
+                        pdf.line(current_x + 10, current_y + 25, current_x + 70, current_y + 25)
+                    except Exception as img_err:
+                        print(f"Error displaying image: {img_err}")
+                        
             except Exception as e:
-                pdf.set_font("Arial", "I", 8)
-                pdf.cell(0, 6, f"[Signature error: Unable to display]", align='L')
-                pdf.ln()
-        else:
+                print(f"Error processing signature: {e}")
+        
+        if not signature_displayed:
             pdf.set_font("Arial", "I", 8)
-            pdf.cell(0, 6, "[Digital signature will appear here after approval]", align='L')
+            pdf.cell(0, 6, "[No digital signature available]", align='L')
             pdf.ln()
         
         pdf.ln(5)
@@ -792,8 +832,14 @@ def main():
                     sig_data = rec.get('signature')
                     if sig_data and isinstance(sig_data, bytes) and len(sig_data) > 0:
                         st.success(f"✅ Data ini memiliki tanda tangan (Size: {len(sig_data)} bytes)")
+                        # Show preview
+                        try:
+                            st.image(sig_data, width=200, caption="Preview Tanda Tangan di Database")
+                        except:
+                            st.info("Signature ada tapi tidak bisa di-preview")
                     else:
-                        st.warning("⚠️ Data ini sudah di-approve tapi tidak ada tanda tangan. Silakan approve ulang untuk menambah tanda tangan.")
+                        st.warning("⚠️ Data ini sudah di-approve tapi tidak ada tanda tangan.")
+                        st.info(f"Debug: signature type = {type(sig_data)}, value = {sig_data}")
                 
                 pdf_bytes = generate_pdf(rec, "Checklist Maintenance")
                 st.download_button("📄 Download PDF", data=pdf_bytes, file_name=f"checklist_{sel}.pdf", mime="application/pdf")
@@ -888,8 +934,14 @@ def main():
                     sig_data = rec.get('signature')
                     if sig_data and isinstance(sig_data, bytes) and len(sig_data) > 0:
                         st.success(f"✅ Data ini memiliki tanda tangan (Size: {len(sig_data)} bytes)")
+                        # Show preview
+                        try:
+                            st.image(sig_data, width=200, caption="Preview Tanda Tangan di Database")
+                        except:
+                            st.info("Signature ada tapi tidak bisa di-preview")
                     else:
-                        st.warning("⚠️ Data ini sudah di-approve tapi tidak ada tanda tangan. Silakan approve ulang untuk menambah tanda tangan.")
+                        st.warning("⚠️ Data ini sudah di-approve tapi tidak ada tanda tangan.")
+                        st.info(f"Debug: signature type = {type(sig_data)}, value = {sig_data}")
                 
                 pdf_bytes = generate_pdf(rec, "Calibration Report")
                 st.download_button("📄 Download PDF", data=pdf_bytes, file_name=f"calibration_{sel}.pdf", mime="application/pdf")
