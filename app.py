@@ -737,8 +737,19 @@ def main():
                 col1, col2 = st.columns([3, 1])
                 date = col1.date_input("Tanggal", value=datetime.today())
                 machine = col1.selectbox("Machine / Area", ["Papper Machine 1", "Papper Machine 2", "Boiler", "WWTP", "Other"])
+                
+                # Sub area dengan menu bertingkat untuk Paper Machine 1
                 sub_area_options = {
-                    "Papper Machine 1": ["Wire Section", "Press Section", "Dryer Section", "Calendar", "Reel"],
+                    "Papper Machine 1": [
+                        "WRAPPING & REWINDER",
+                        "POPE REEL & KUSTER",
+                        "DRYER GROUP 1 & 2",
+                        "DRYER GROUP 3, 4 & 5",
+                        "DRYER GROUP 6 & 7",
+                        "PRESS 1, 2 & 3",
+                        "WIRE AREA",
+                        "STOCK PREPARATION AREA"
+                    ],
                     "Papper Machine 2": ["Wire Section", "Press Section", "Dryer Section", "Calendar", "Reel"],
                     "Boiler": ["Feed Pump", "Burner", "Economizer", "Air Fan", "Water Softener"],
                     "WWTP": ["Blower", "Screening", "Clarifier", "Sludge Pump", "Equalization Tank"],
