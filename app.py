@@ -193,7 +193,38 @@ def save_signature(user_id, signature_data):
         st.error(f"Error saving signature: {e}")
         return False
 
-def save_checklist(user_id, date, machine, sub_area, shift, item, condition, note, image_before=None, image_after=None, details=None):
+def save_checklist_batch(user_id, date, machine, sub_area, shift, checklist_data, image_before=None, image_after=None):
+    """Save multiple checklist items at once"""
+    try:
+        conn = get_conn()
+        c = conn.cursor()
+        date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)
+        img_before_binary = image_before.read() if image_before else None
+        img_after_binary = image_after.read() if image_after else None
+        
+        singapore_tz = pytz.timezone('Asia/Singapore')
+        now = datetime.now(singapore_tz)
+        
+        import json
+        
+        # Insert each item
+        for item_data in checklist_data:
+            details_json = json.dumps(item_data['details']) if item_data.get('details') else None
+            
+            c.execute("""
+                INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, image_before, image_after, created_at, details)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, date_str, machine, sub_area, shift, 
+                  item_data['item'], item_data['condition'], item_data['note'], 
+                  img_before_binary, img_after_binary, now.isoformat(), details_json))
+        
+        conn.commit()
+        conn.close()
+        st.success(f"✅ {len(checklist_data)} item berhasil disimpan!")
+        return True
+    except Exception as e:
+        st.error(f"❌ Error menyimpan checklist: {e}")
+        return False
     try:
         conn = get_conn()
         c = conn.cursor()
@@ -767,115 +798,142 @@ def main():
                 sub_area = col1.selectbox("Sub Area", sub_area_options.get(machine, ["N/A"]))
                 shift = col2.selectbox("Shift", ["Pagi", "Siang", "Malam"])
                 
-                # Item yang diperiksa - dinamis berdasarkan Machine dan Sub Area
-                item_options = {
-                    "Papper Machine 1": {
-                        "WRAPPING & REWINDER": [
-                            "P1 - Upender",
-                            "P2 - Winder Platform",
-                            "P3 - Winder Rope Feed",
-                            "P4 - Winder Drive Stretcher",
-                            "P5 - Winder Blade",
-                            "P6 - Winder Blade Roll",
-                            "P7 - Winder Belt Stretcher",
-                            "P8 - Winder Drive Lock",
-                            "P9 - Winder Brake",
-                            "P10 - Power Pack Unit",
-                            "P11 - Paper Care"
-                        ],
-                        "POPE REEL & KUSTER": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Sensor", "Other"],
-                        "DRYER GROUP 1 & 2": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Sensor", "Other"],
-                        "DRYER GROUP 3, 4 & 5": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Sensor", "Other"],
-                        "DRYER GROUP 6 & 7": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Sensor", "Other"],
-                        "PRESS 1, 2 & 3": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Sensor", "Other"],
-                        "WIRE AREA": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Sensor", "Other"],
-                        "STOCK PREPARATION AREA": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Sensor", "Other"]
-                    },
-                    "Papper Machine 2": {
-                        "default": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"]
-                    },
-                    "Boiler": {
-                        "default": ["Motor", "Pump", "Bearing", "Belt", "Valve", "Pressure Gauge", "Temperature Sensor", "Other"]
-                    },
-                    "WWTP": {
-                        "default": ["Motor", "Pump", "Bearing", "Belt", "Valve", "Sensor", "Other"]
-                    },
-                    "Other": {
-                        "default": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"]
-                    }
-                }
+                # Cek apakah WRAPPING & REWINDER
+                is_wrapping_rewinder = (machine == "Papper Machine 1" and sub_area == "WRAPPING & REWINDER")
                 
-                # Dapatkan item list berdasarkan machine dan sub_area
-                if machine in item_options:
-                    if sub_area in item_options[machine]:
-                        item_list = item_options[machine][sub_area]
-                    else:
-                        item_list = item_options[machine].get("default", ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"])
-                else:
-                    item_list = ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"]
-                
-                item = col1.selectbox("Item yang diperiksa", item_list)
-                
-                # Jika WRAPPING & REWINDER, tampilkan form detail
-                show_detail_form = (machine == "Papper Machine 1" and sub_area == "WRAPPING & REWINDER")
-                
-                if show_detail_form:
-                    st.markdown("#### 📋 Detail Inspection Checklist")
-                    st.info("Centang (✓) jika item dalam kondisi baik, kosongkan jika ada masalah")
+                if is_wrapping_rewinder:
+                    # Tampilkan tabel untuk 11 part
+                    st.markdown("### 📋 Checklist Table - WRAPPING & REWINDER")
+                    st.info("Isi checklist untuk semua part di bawah ini")
                     
-                    col_a, col_b, col_c = st.columns(3)
+                    # Daftar part
+                    parts_list = [
+                        "P1 - Upender",
+                        "P2 - Winder Platform",
+                        "P3 - Winder Rope Feed",
+                        "P4 - Winder Drive Stretcher",
+                        "P5 - Winder Blade",
+                        "P6 - Winder Blade Roll",
+                        "P7 - Winder Belt Stretcher",
+                        "P8 - Winder Drive Lock",
+                        "P9 - Winder Brake",
+                        "P10 - Power Pack Unit",
+                        "P11 - Paper Care"
+                    ]
                     
-                    with col_a:
-                        st.markdown("**Mechanical & Pneumatic:**")
-                        pneumatic_cylinder = st.checkbox("Pneumatic Cylinder", value=True, key="pneumatic")
-                        hydraulic_cylinder = st.checkbox("Hydraulic Cylinder", value=True, key="hydraulic")
-                        pressure_gauge = st.checkbox("Pressure Gauge", value=True, key="pressure")
+                    # Initialize session state for checklist data
+                    if 'checklist_table' not in st.session_state:
+                        st.session_state.checklist_table = {}
                     
-                    with col_b:
-                        st.markdown("**Electrical:**")
-                        connector = st.checkbox("Connector", value=True, key="connector")
-                        sensor = st.checkbox("Sensor", value=True, key="sensor")
-                        display = st.checkbox("Display", value=True, key="display")
+                    # Header tabel
+                    st.markdown("| Part | Pneumatic | Hydraulic | Pressure | Connector | Sensor | Pumps | Packing | Display | Accuracy | Note |")
+                    st.markdown("|------|-----------|-----------|----------|-----------|--------|-------|---------|---------|----------|------|")
                     
-                    with col_c:
-                        st.markdown("**Others:**")
-                        pumps = st.checkbox("Pumps", value=True, key="pumps")
-                        packing_seal = st.checkbox("Packing/Seal", value=True, key="packing")
-                        accuracy = st.checkbox("Accuracy", value=True, key="accuracy")
-                    
-                    # Overall condition
-                    all_good = pneumatic_cylinder and hydraulic_cylinder and pressure_gauge and connector and sensor and display and pumps and packing_seal and accuracy
-                    if all_good:
-                        condition = col1.selectbox("Overall Condition", ["Good", "Minor", "Bad"], index=0)
-                    else:
-                        condition = col1.selectbox("Overall Condition", ["Good", "Minor", "Bad"], index=1)
-                else:
-                    condition = col1.selectbox("Condition", ["Good", "Minor", "Bad"])
-                
-                note = st.text_area("Keterangan / Temuan")
-                st.markdown("#### 📷 Upload Gambar (Opsional)")
-                col_img1, col_img2 = st.columns(2)
-                image_before = col_img1.file_uploader("Foto Before", type=['png', 'jpg', 'jpeg'], key="before")
-                image_after = col_img2.file_uploader("Foto After", type=['png', 'jpg', 'jpeg'], key="after")
-
-                if st.form_submit_button("💾 Simpan Checklist", use_container_width=True):
-                    # Prepare details if wrapping & rewinder
-                    details = None
-                    if show_detail_form:
-                        details = {
-                            "pneumatic_cylinder": "OK" if pneumatic_cylinder else "NG",
-                            "hydraulic_cylinder": "OK" if hydraulic_cylinder else "NG",
-                            "pressure_gauge": "OK" if pressure_gauge else "NG",
-                            "connector": "OK" if connector else "NG",
-                            "sensor": "OK" if sensor else "NG",
-                            "display": "OK" if display else "NG",
-                            "pumps": "OK" if pumps else "NG",
-                            "packing_seal": "OK" if packing_seal else "NG",
-                            "accuracy": "OK" if accuracy else "NG"
+                    # Input untuk setiap part
+                    for idx, part in enumerate(parts_list):
+                        st.markdown(f"#### {part}")
+                        cols = st.columns([2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3])
+                        
+                        with cols[0]:
+                            st.write(f"**{part}**")
+                        
+                        pneumatic = cols[1].checkbox("✓", value=True, key=f"pn_{idx}", label_visibility="collapsed")
+                        hydraulic = cols[2].checkbox("✓", value=True, key=f"hy_{idx}", label_visibility="collapsed")
+                        pressure = cols[3].checkbox("✓", value=True, key=f"pr_{idx}", label_visibility="collapsed")
+                        connector = cols[4].checkbox("✓", value=True, key=f"co_{idx}", label_visibility="collapsed")
+                        sensor = cols[5].checkbox("✓", value=True, key=f"se_{idx}", label_visibility="collapsed")
+                        pumps = cols[6].checkbox("✓", value=True, key=f"pu_{idx}", label_visibility="collapsed")
+                        packing = cols[7].checkbox("✓", value=True, key=f"pa_{idx}", label_visibility="collapsed")
+                        display = cols[8].checkbox("✓", value=True, key=f"di_{idx}", label_visibility="collapsed")
+                        accuracy = cols[9].checkbox("✓", value=True, key=f"ac_{idx}", label_visibility="collapsed")
+                        note_part = cols[10].text_input("Note", key=f"note_{idx}", label_visibility="collapsed")
+                        
+                        # Store in session state
+                        st.session_state.checklist_table[part] = {
+                            'pneumatic': pneumatic,
+                            'hydraulic': hydraulic,
+                            'pressure': pressure,
+                            'connector': connector,
+                            'sensor': sensor,
+                            'pumps': pumps,
+                            'packing': packing,
+                            'display': display,
+                            'accuracy': accuracy,
+                            'note': note_part
                         }
                     
-                    if save_checklist(user['id'], date, machine, sub_area, shift, item, condition, note, image_before, image_after, details):
-                        st.rerun()
+                    st.markdown("---")
+                    st.markdown("#### 📷 Upload Gambar (Opsional)")
+                    col_img1, col_img2 = st.columns(2)
+                    image_before = col_img1.file_uploader("Foto Before", type=['png', 'jpg', 'jpeg'], key="before")
+                    image_after = col_img2.file_uploader("Foto After", type=['png', 'jpg', 'jpeg'], key="after")
+                    
+                    if st.form_submit_button("💾 Simpan Semua Checklist", use_container_width=True):
+                        # Prepare batch data
+                        checklist_data = []
+                        for part, data in st.session_state.checklist_table.items():
+                            # Determine condition
+                            all_ok = all([data['pneumatic'], data['hydraulic'], data['pressure'], 
+                                        data['connector'], data['sensor'], data['pumps'], 
+                                        data['packing'], data['display'], data['accuracy']])
+                            condition = "Good" if all_ok else "Minor"
+                            
+                            details = {
+                                "pneumatic_cylinder": "OK" if data['pneumatic'] else "NG",
+                                "hydraulic_cylinder": "OK" if data['hydraulic'] else "NG",
+                                "pressure_gauge": "OK" if data['pressure'] else "NG",
+                                "connector": "OK" if data['connector'] else "NG",
+                                "sensor": "OK" if data['sensor'] else "NG",
+                                "pumps": "OK" if data['pumps'] else "NG",
+                                "packing_seal": "OK" if data['packing'] else "NG",
+                                "display": "OK" if data['display'] else "NG",
+                                "accuracy": "OK" if data['accuracy'] else "NG"
+                            }
+                            
+                            checklist_data.append({
+                                'item': part,
+                                'condition': condition,
+                                'note': data['note'],
+                                'details': details
+                            })
+                        
+                        if save_checklist_batch(user['id'], date, machine, sub_area, shift, checklist_data, image_before, image_after):
+                            st.session_state.checklist_table = {}  # Clear
+                            st.rerun()
+                
+                else:
+                    # Form standar untuk area lain
+                    item_options = {
+                        "Papper Machine 1": {
+                            "default": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"]
+                        },
+                        "Papper Machine 2": {
+                            "default": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"]
+                        },
+                        "Boiler": {
+                            "default": ["Motor", "Pump", "Bearing", "Belt", "Valve", "Pressure Gauge", "Temperature Sensor", "Other"]
+                        },
+                        "WWTP": {
+                            "default": ["Motor", "Pump", "Bearing", "Belt", "Valve", "Sensor", "Other"]
+                        },
+                        "Other": {
+                            "default": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"]
+                        }
+                    }
+                    
+                    item_list = item_options.get(machine, {}).get("default", ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"])
+                    item = col1.selectbox("Item yang diperiksa", item_list)
+                    condition = col1.selectbox("Condition", ["Good", "Minor", "Bad"])
+                    note = st.text_area("Keterangan / Temuan")
+                    
+                    st.markdown("#### 📷 Upload Gambar (Opsional)")
+                    col_img1, col_img2 = st.columns(2)
+                    image_before = col_img1.file_uploader("Foto Before", type=['png', 'jpg', 'jpeg'], key="before")
+                    image_after = col_img2.file_uploader("Foto After", type=['png', 'jpg', 'jpeg'], key="after")
+
+                    if st.form_submit_button("💾 Simpan Checklist", use_container_width=True):
+                        if save_checklist(user['id'], date, machine, sub_area, shift, item, condition, note, image_before, image_after, None):
+                            st.rerun()
 
         st.subheader("📋 Daftar Checklist")
         df = get_checklists() if user['role'] in ['admin', 'manager'] else get_checklists(user_id=user['id'])
