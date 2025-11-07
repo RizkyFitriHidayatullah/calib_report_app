@@ -467,12 +467,12 @@ def generate_pdf_wrapping_rewinder(df_records, date, shift, user_name):
     pdf.set_font("Arial", "", 9)
     pdf.cell(60, 6, f"Date: {date}", border=0)
     pdf.cell(60, 6, f"Shift: {shift}", border=0)
-    pdf.cell(60, 6, f"Input by: {user_name}", border=0)
+    pdf.cell(60, 6, f"Input and prepared by: {user_name}", border=0)
     pdf.ln(8)
     
     # Header Tabel
     headers = ["No", "Unit - Position", "Pneumatic", "Hydraulic", "Pressure", "Connector", "Sensor", "Pump", "Packing", "Display", "Accuracy", "Note"]
-    col_widths = [10, 30, 23, 23, 23, 23, 23, 23, 23, 23, 23, 30]
+    col_widths = [10, 30, 21, 21, 21, 21, 21, 21, 21, 21, 21, 48]
 
     
     pdf.set_font("Arial", "B", 7)
