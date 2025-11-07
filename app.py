@@ -341,6 +341,28 @@ def get_calibrations(user_id=None):
     cols = ["id", "user_id", "date", "instrument", "procedure", "result", "remarks", "created_at", "approved_by", "approved_at", "approval_status", "signature", "input_by"]
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
+def approve_checklist_batch(checklist_ids, manager_name, signature_data):
+    """Approve multiple checklist items at once"""
+    try:
+        conn = get_conn()
+        c = conn.cursor()
+        singapore_tz = pytz.timezone('Asia/Singapore')
+        now = datetime.now(singapore_tz)
+        
+        for checklist_id in checklist_ids:
+            c.execute("""
+                UPDATE checklist 
+                SET approval_status = 'Approved', approved_by = ?, approved_at = ?, signature = ?
+                WHERE id = ?
+            """, (manager_name, now.isoformat(), signature_data, checklist_id))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"❌ Error approve batch: {e}")
+        return False
+
 def approve_checklist(checklist_id, manager_name, signature_data):
     try:
         conn = get_conn()
@@ -903,51 +925,116 @@ def main():
             if user['role'] == 'manager':
                 st.markdown("### ✅ Approval Checklist")
                 pending_df = df[df['approval_status'] == 'Pending']
+                
                 if not pending_df.empty:
-                    col1, col2 = st.columns([3, 1])
-                    sel_approve = col1.selectbox("Pilih ID untuk Approve", [""] + pending_df['id'].astype(str).tolist(), key="approve_checklist")
+                    # Cek apakah ada WRAPPING & REWINDER
+                    wrapping_pending = pending_df[(pending_df['machine'] == 'Papper Machine 1') & (pending_df['sub_area'] == 'WRAPPING & REWINDER')]
                     
-                    if sel_approve:
+                    if not wrapping_pending.empty:
+                        st.markdown("#### 🔧 Batch Approval - WRAPPING & REWINDER")
+                        st.info("Approve semua checklist untuk satu tanggal & shift sekaligus")
+                        
+                        # Group by date and shift
+                        unique_sessions = wrapping_pending.groupby(['date', 'shift']).size().reset_index()[['date', 'shift']]
+                        
+                        col1, col2 = st.columns([3, 1])
+                        session_options = [""] + [f"{row['date']} - Shift {row['shift']}" for _, row in unique_sessions.iterrows()]
+                        sel_session = col1.selectbox("Pilih Tanggal & Shift untuk Approve", session_options, key="approve_session")
+                        
+                        if sel_session:
+                            selected_date, selected_shift = sel_session.split(" - Shift ")
+                            session_df = wrapping_pending[(wrapping_pending['date'] == selected_date) & (wrapping_pending['shift'] == selected_shift)]
+                            
+                            st.write(f"**📋 Total {len(session_df)} items akan di-approve:**")
+                            st.dataframe(session_df[['id', 'item', 'condition']], use_container_width=True, hide_index=True)
+                            
+                            st.markdown("#### ✍️ Tanda Tangan untuk Approval")
+                            
+                            if user.get('signature'):
+                                st.success("✅ Menggunakan tanda tangan tersimpan dari profile")
+                                try:
+                                    sig_bytes = user['signature']
+                                    if isinstance(sig_bytes, bytes) and len(sig_bytes) > 0:
+                                        st.image(sig_bytes, width=200, caption="Preview Tanda Tangan")
+                                except:
+                                    pass
+                                
+                                use_saved = st.checkbox("Gunakan tanda tangan tersimpan", value=True, key="use_saved_sig_batch")
+                                
+                                if not use_saved:
+                                    new_signature = st.file_uploader("Upload tanda tangan baru", type=['png', 'jpg', 'jpeg'], key="new_sig_batch")
+                                    signature_to_use = new_signature.read() if new_signature else None
+                                else:
+                                    signature_to_use = user['signature']
+                            else:
+                                st.warning("⚠️ Silakan upload tanda tangan di Profile terlebih dahulu")
+                                signature_upload = st.file_uploader("Upload Tanda Tangan", type=['png', 'jpg', 'jpeg'], key="sig_batch")
+                                signature_to_use = signature_upload.read() if signature_upload else None
+                            
+                            if signature_to_use and col2.button("✅ Approve Semua", key="btn_approve_batch"):
+                                if isinstance(signature_to_use, bytes) and len(signature_to_use) > 0:
+                                    checklist_ids = session_df['id'].tolist()
+                                    if approve_checklist_batch(checklist_ids, user['fullname'], signature_to_use):
+                                        st.success(f"✅ {len(checklist_ids)} checklist berhasil di-approve untuk {sel_session}!")
+                                        st.rerun()
+                                else:
+                                    st.error("❌ Data tanda tangan tidak valid!")
+                            elif not signature_to_use and col2.button("✅ Approve Semua", key="btn_approve_batch_no_sig"):
+                                st.error("❌ Harap upload tanda tangan terlebih dahulu!")
+                        
                         st.markdown("---")
-                        preview_data = pending_df[pending_df['id'] == int(sel_approve)].iloc[0]
-                        st.write("**Preview Data:**")
-                        col_a, col_b, col_c = st.columns(3)
-                        col_a.write(f"**Machine:** {preview_data['machine']}")
-                        col_b.write(f"**Item:** {preview_data['item']}")
-                        col_c.write(f"**Condition:** {preview_data['condition']}")
+                    
+                    # Individual Approval untuk checklist lainnya
+                    st.markdown("#### 📋 Individual Approval")
+                    non_wrapping_pending = pending_df[~((pending_df['machine'] == 'Papper Machine 1') & (pending_df['sub_area'] == 'WRAPPING & REWINDER'))]
+                    
+                    if not non_wrapping_pending.empty:
+                        col1, col2 = st.columns([3, 1])
+                        sel_approve = col1.selectbox("Pilih ID untuk Approve", [""] + non_wrapping_pending['id'].astype(str).tolist(), key="approve_individual")
                         
-                        st.markdown("#### ✍️ Tanda Tangan untuk Approval")
-                        
-                        if user.get('signature'):
-                            st.success("✅ Menggunakan tanda tangan tersimpan dari profile")
-                            try:
-                                sig_bytes = user['signature']
-                                if isinstance(sig_bytes, bytes) and len(sig_bytes) > 0:
-                                    st.image(sig_bytes, width=200, caption="Preview Tanda Tangan")
-                            except:
-                                pass
+                        if sel_approve:
+                            st.markdown("---")
+                            preview_data = non_wrapping_pending[non_wrapping_pending['id'] == int(sel_approve)].iloc[0]
+                            st.write("**Preview Data:**")
+                            col_a, col_b, col_c = st.columns(3)
+                            col_a.write(f"**Machine:** {preview_data['machine']}")
+                            col_b.write(f"**Item:** {preview_data['item']}")
+                            col_c.write(f"**Condition:** {preview_data['condition']}")
                             
-                            use_saved = st.checkbox("Gunakan tanda tangan tersimpan", value=True, key="use_saved_sig_check")
+                            st.markdown("#### ✍️ Tanda Tangan untuk Approval")
                             
-                            if not use_saved:
-                                new_signature = st.file_uploader("Upload tanda tangan baru", type=['png', 'jpg', 'jpeg'], key="new_sig_check")
-                                signature_to_use = new_signature.read() if new_signature else None
+                            if user.get('signature'):
+                                st.success("✅ Menggunakan tanda tangan tersimpan dari profile")
+                                try:
+                                    sig_bytes = user['signature']
+                                    if isinstance(sig_bytes, bytes) and len(sig_bytes) > 0:
+                                        st.image(sig_bytes, width=200, caption="Preview Tanda Tangan")
+                                except:
+                                    pass
+                                
+                                use_saved = st.checkbox("Gunakan tanda tangan tersimpan", value=True, key="use_saved_sig_ind")
+                                
+                                if not use_saved:
+                                    new_signature = st.file_uploader("Upload tanda tangan baru", type=['png', 'jpg', 'jpeg'], key="new_sig_ind")
+                                    signature_to_use = new_signature.read() if new_signature else None
+                                else:
+                                    signature_to_use = user['signature']
                             else:
-                                signature_to_use = user['signature']
-                        else:
-                            st.warning("⚠️ Silakan upload tanda tangan di Profile terlebih dahulu")
-                            signature_upload = st.file_uploader("Upload Tanda Tangan", type=['png', 'jpg', 'jpeg'], key="sig_check")
-                            signature_to_use = signature_upload.read() if signature_upload else None
-                        
-                        if signature_to_use and col2.button("✅ Approve", key="btn_approve_checklist"):
-                            if isinstance(signature_to_use, bytes) and len(signature_to_use) > 0:
-                                if approve_checklist(int(sel_approve), user['fullname'], signature_to_use):
-                                    st.success(f"✅ Checklist ID {sel_approve} berhasil di-approve!")
-                                    st.rerun()
-                            else:
-                                st.error("❌ Data tanda tangan tidak valid!")
-                        elif not signature_to_use and col2.button("✅ Approve", key="btn_approve_checklist_no_sig"):
-                            st.error("❌ Harap upload tanda tangan terlebih dahulu!")
+                                st.warning("⚠️ Silakan upload tanda tangan di Profile terlebih dahulu")
+                                signature_upload = st.file_uploader("Upload Tanda Tangan", type=['png', 'jpg', 'jpeg'], key="sig_ind")
+                                signature_to_use = signature_upload.read() if signature_upload else None
+                            
+                            if signature_to_use and col2.button("✅ Approve", key="btn_approve_individual"):
+                                if isinstance(signature_to_use, bytes) and len(signature_to_use) > 0:
+                                    if approve_checklist(int(sel_approve), user['fullname'], signature_to_use):
+                                        st.success(f"✅ Checklist ID {sel_approve} berhasil di-approve!")
+                                        st.rerun()
+                                else:
+                                    st.error("❌ Data tanda tangan tidak valid!")
+                            elif not signature_to_use and col2.button("✅ Approve", key="btn_approve_individual_no_sig"):
+                                st.error("❌ Harap upload tanda tangan terlebih dahulu!")
+                    else:
+                        st.info("Tidak ada checklist individual yang perlu di-approve")
                 else:
                     st.info("✅ Semua checklist sudah di-approve")
             
