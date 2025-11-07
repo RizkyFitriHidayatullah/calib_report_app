@@ -413,7 +413,7 @@ def generate_pdf_wrapping_rewinder(df_records, date, shift, user_name):
     
     # Header
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 8, "CHECKLIST MAINTENANCE - WRAPPING & REWINDER", ln=True, align="C")
+    pdf.cell(0, 8, "CHECKLIST MAINTENANCE PM1 - WRAPPING & REWINDER", ln=True, align="C")
     pdf.ln(3)
     
     # Info
