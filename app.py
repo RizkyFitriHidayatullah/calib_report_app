@@ -9,6 +9,7 @@ from io import BytesIO
 from PIL import Image
 import tempfile
 import base64
+import json
 
 # ---------------------------
 # CONFIG
@@ -82,7 +83,8 @@ def init_db():
         approved_by TEXT,
         approved_at TEXT,
         approval_status TEXT DEFAULT 'Pending',
-        signature BLOB
+        signature BLOB,
+        details TEXT
     )""")
 
     c.execute("""
@@ -120,6 +122,10 @@ def init_db():
         pass
     try:
         c.execute("ALTER TABLE checklist ADD COLUMN signature BLOB")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE checklist ADD COLUMN details TEXT")
     except:
         pass
     try:
@@ -188,7 +194,8 @@ def save_signature(user_id, signature_data):
         st.error(f"Error saving signature: {e}")
         return False
 
-def save_checklist(user_id, date, machine, sub_area, shift, item, condition, note, image_before=None, image_after=None):
+def save_checklist_batch(user_id, date, machine, sub_area, shift, checklist_data, image_before=None, image_after=None):
+    """Save multiple checklist items at once"""
     try:
         conn = get_conn()
         c = conn.cursor()
@@ -199,10 +206,42 @@ def save_checklist(user_id, date, machine, sub_area, shift, item, condition, not
         singapore_tz = pytz.timezone('Asia/Singapore')
         now = datetime.now(singapore_tz)
         
+        # Insert each item
+        for item_data in checklist_data:
+            details_json = json.dumps(item_data['details']) if item_data.get('details') else None
+            
+            c.execute("""
+                INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, image_before, image_after, created_at, details)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, date_str, machine, sub_area, shift, 
+                  item_data['item'], item_data['condition'], item_data['note'], 
+                  img_before_binary, img_after_binary, now.isoformat(), details_json))
+        
+        conn.commit()
+        conn.close()
+        st.success(f"✅ {len(checklist_data)} item berhasil disimpan!")
+        return True
+    except Exception as e:
+        st.error(f"❌ Error menyimpan checklist: {e}")
+        return False
+
+def save_checklist(user_id, date, machine, sub_area, shift, item, condition, note, image_before=None, image_after=None, details=None):
+    try:
+        conn = get_conn()
+        c = conn.cursor()
+        date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)
+        img_before_binary = image_before.read() if image_before else None
+        img_after_binary = image_after.read() if image_after else None
+        
+        singapore_tz = pytz.timezone('Asia/Singapore')
+        now = datetime.now(singapore_tz)
+        
+        details_json = json.dumps(details) if details else None
+        
         c.execute("""
-            INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, image_before, image_after, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, date_str, machine, sub_area, shift, item, condition, note, img_before_binary, img_after_binary, now.isoformat()))
+            INSERT INTO checklist (user_id, date, machine, sub_area, shift, item, condition, note, image_before, image_after, created_at, details)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, date_str, machine, sub_area, shift, item, condition, note, img_before_binary, img_after_binary, now.isoformat(), details_json))
         conn.commit()
         conn.close()
         st.success("✅ Data berhasil disimpan!")
@@ -243,6 +282,7 @@ def get_checklists(user_id=None):
                    COALESCE(c.approved_at, '') as approved_at, 
                    COALESCE(c.approval_status, 'Pending') as approval_status,
                    c.signature,
+                   c.details,
                    u.fullname as input_by
             FROM checklist c 
             LEFT JOIN users u ON c.user_id = u.id 
@@ -257,6 +297,7 @@ def get_checklists(user_id=None):
                    COALESCE(c.approved_at, '') as approved_at, 
                    COALESCE(c.approval_status, 'Pending') as approval_status,
                    c.signature,
+                   c.details,
                    u.fullname as input_by
             FROM checklist c 
             LEFT JOIN users u ON c.user_id = u.id 
@@ -264,7 +305,7 @@ def get_checklists(user_id=None):
         """)
     rows = c.fetchall()
     conn.close()
-    cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "image_before", "image_after", "created_at", "approved_by", "approved_at", "approval_status", "signature", "input_by"]
+    cols = ["id", "user_id", "date", "machine", "sub_area", "shift", "item", "condition", "note", "image_before", "image_after", "created_at", "approved_by", "approved_at", "approval_status", "signature", "details", "input_by"]
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 def get_calibrations(user_id=None):
@@ -307,30 +348,16 @@ def approve_checklist(checklist_id, manager_name, signature_data):
         singapore_tz = pytz.timezone('Asia/Singapore')
         now = datetime.now(singapore_tz)
         
-        # Debug: print info
-        print(f"Approving checklist {checklist_id}")
-        print(f"Signature data type: {type(signature_data)}")
-        print(f"Signature data length: {len(signature_data) if signature_data else 0}")
-        
         c.execute("""
             UPDATE checklist 
             SET approval_status = 'Approved', approved_by = ?, approved_at = ?, signature = ?
             WHERE id = ?
         """, (manager_name, now.isoformat(), signature_data, checklist_id))
         
-        # Verify signature was saved
-        c.execute("SELECT signature FROM checklist WHERE id = ?", (checklist_id,))
-        result = c.fetchone()
-        if result and result[0]:
-            print(f"Signature saved successfully. Size: {len(result[0])} bytes")
-        else:
-            print("WARNING: Signature not saved!")
-        
         conn.commit()
         conn.close()
         return True
     except Exception as e:
-        print(f"Error in approve_checklist: {e}")
         st.error(f"❌ Error approve: {e}")
         return False
 
@@ -341,37 +368,147 @@ def approve_calibration(calibration_id, manager_name, signature_data):
         singapore_tz = pytz.timezone('Asia/Singapore')
         now = datetime.now(singapore_tz)
         
-        # Debug: print info
-        print(f"Approving calibration {calibration_id}")
-        print(f"Signature data type: {type(signature_data)}")
-        print(f"Signature data length: {len(signature_data) if signature_data else 0}")
-        
         c.execute("""
             UPDATE calibration 
             SET approval_status = 'Approved', approved_by = ?, approved_at = ?, signature = ?
             WHERE id = ?
         """, (manager_name, now.isoformat(), signature_data, calibration_id))
         
-        # Verify signature was saved
-        c.execute("SELECT signature FROM calibration WHERE id = ?", (calibration_id,))
-        result = c.fetchone()
-        if result and result[0]:
-            print(f"Signature saved successfully. Size: {len(result[0])} bytes")
-        else:
-            print("WARNING: Signature not saved!")
-        
         conn.commit()
         conn.close()
         return True
     except Exception as e:
-        print(f"Error in approve_calibration: {e}")
         st.error(f"❌ Error approve: {e}")
         return False
 
 # ---------------------------
 # PDF GENERATOR
 # ---------------------------
+def generate_pdf_wrapping_rewinder(df_records, date, shift, user_name):
+    """Generate PDF khusus untuk WRAPPING & REWINDER dengan semua 11 part dalam satu halaman"""
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf.add_page()
+    
+    # Header
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 8, "CHECKLIST MAINTENANCE - WRAPPING & REWINDER", ln=True, align="C")
+    pdf.ln(3)
+    
+    # Info
+    pdf.set_font("Arial", "", 9)
+    pdf.cell(60, 6, f"Date: {date}", border=0)
+    pdf.cell(60, 6, f"Shift: {shift}", border=0)
+    pdf.cell(60, 6, f"Input by: {user_name}", border=0)
+    pdf.ln(8)
+    
+    # Header Tabel
+    headers = ["No", "Part", "Pneu", "Hydr", "Press", "Conn", "Sens", "Pump", "Pack", "Disp", "Accu", "Note"]
+    col_widths = [10, 45, 10, 10, 10, 10, 10, 10, 10, 10, 10, 82]
+    
+    pdf.set_font("Arial", "B", 7)
+    pdf.set_fill_color(200, 200, 200)
+    for i, h in enumerate(headers):
+        pdf.cell(col_widths[i], 6, h, border=1, align='C', fill=True)
+    pdf.ln()
+    
+    # Isi Tabel
+    pdf.set_font("Arial", "", 6)
+    for idx, (_, record) in enumerate(df_records.iterrows(), 1):
+        details_str = record.get('details', '{}')
+        try:
+            details = json.loads(details_str) if details_str else {}
+        except:
+            details = {}
+        
+        # Status symbols
+        def get_status(key):
+            status = details.get(key, "OK")
+            return "OK" if status == "OK" else "NG"
+        
+        values = [
+            str(idx),
+            record.get('item', '')[:35],
+            get_status('pneumatic_cylinder'),
+            get_status('hydraulic_cylinder'),
+            get_status('pressure_gauge'),
+            get_status('connector'),
+            get_status('sensor'),
+            get_status('pumps'),
+            get_status('packing_seal'),
+            get_status('display'),
+            get_status('accuracy'),
+            str(record.get('note', ''))[:60]
+        ]
+        
+        # Warna untuk OK/NG
+        for i, val in enumerate(values):
+            if i >= 2 and i <= 10:  # Kolom check
+                if val == "NG":
+                    pdf.set_fill_color(255, 200, 200)  # Merah muda
+                    pdf.cell(col_widths[i], 5, val, border=1, align='C', fill=True)
+                    pdf.set_fill_color(255, 255, 255)
+                else:
+                    pdf.cell(col_widths[i], 5, val, border=1, align='C')
+            else:
+                pdf.cell(col_widths[i], 5, val, border=1, align='L' if i in [1, 11] else 'C')
+        pdf.ln()
+    
+    # Legend
+    pdf.ln(5)
+    pdf.set_font("Arial", "I", 7)
+    pdf.cell(0, 4, "Legend: OK = Kondisi Baik | NG = Ada Masalah (Background Merah)", align='L')
+    
+    # Approval Section
+    if len(df_records) > 0:
+        first_record = df_records.iloc[0]
+        if first_record.get('approval_status') == 'Approved':
+            pdf.ln(8)
+            pdf.set_font("Arial", "B", 9)
+            pdf.cell(0, 6, "APPROVAL SECTION", ln=True, align='C')
+            pdf.ln(2)
+            
+            approved_by = str(first_record.get('approved_by', 'N/A'))
+            approved_at_raw = first_record.get('approved_at', 'N/A')
+            
+            if approved_at_raw and approved_at_raw != 'N/A':
+                try:
+                    dt = datetime.fromisoformat(approved_at_raw)
+                    approved_at = dt.strftime("%Y-%m-%d %H:%M")
+                except:
+                    approved_at = str(approved_at_raw)
+            else:
+                approved_at = 'N/A'
+            
+            pdf.set_font("Arial", "", 8)
+            pdf.cell(60, 6, f"Approved by: {approved_by}", border=1)
+            pdf.cell(60, 6, f"Date: {approved_at}", border=1)
+            pdf.ln(8)
+            
+            # Signature
+            signature_data = first_record.get("signature")
+            if signature_data and isinstance(signature_data, bytes) and len(signature_data) > 0:
+                pdf.set_font("Arial", "B", 8)
+                pdf.cell(30, 5, "Signature:", border=0)
+                pdf.ln(6)
+                
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".png", mode='wb') as tmp:
+                        tmp.write(signature_data)
+                        tmp.flush()
+                        current_x = pdf.get_x()
+                        current_y = pdf.get_y()
+                        pdf.image(tmp.name, x=current_x + 5, y=current_y, w=50, h=20)
+                        pdf.ln(22)
+                except:
+                    pass
+    
+    try:
+        return pdf.output(dest="S").encode("latin-1", errors="ignore")
+    except:
+        return pdf.output(dest="S").encode("latin-1", errors="ignore")
+
 def generate_pdf(record, title):
+    """PDF generator untuk checklist biasa"""
     pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.add_page()
 
@@ -453,7 +590,7 @@ def generate_pdf(record, title):
     pdf.set_xy(x_start, y_start + row_height)
     pdf.ln(8)
 
-    # Approval Section dengan Tanda Tangan
+    # Approval Section
     if record.get("approval_status") == "Approved":
         pdf.set_font("Arial", "B", 10)
         pdf.cell(0, 6, "APPROVAL SECTION", ln=True, align='C')
@@ -471,58 +608,35 @@ def generate_pdf(record, title):
         else:
             approved_at = 'N/A'
         
-        # Box untuk approval info
         pdf.set_font("Arial", "", 9)
-        x_pos = pdf.get_x()
-        y_pos = pdf.get_y()
-        
-        # Info boxes
         pdf.cell(70, 8, f"Approved by: {approved_by}", border=1, align='L')
         pdf.cell(70, 8, f"Date: {approved_at}", border=1, align='L')
         pdf.ln(10)
         
-        # Tanda tangan jika ada
+        # Signature
         signature_data = record.get("signature")
         pdf.set_font("Arial", "B", 9)
         pdf.cell(40, 6, "Signature:", border=0, align='L')
         pdf.ln(8)
         
-        signature_displayed = False
-        
-        if signature_data:
+        if signature_data and isinstance(signature_data, bytes) and len(signature_data) > 0:
             try:
-                # Convert ke bytes jika perlu
-                if not isinstance(signature_data, bytes):
-                    signature_data = bytes(signature_data)
-                
-                if len(signature_data) > 0:
-                    # Simpan signature ke temporary file
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".png", mode='wb') as tmp:
-                        tmp.write(signature_data)
-                        tmp.flush()
-                        tmp_path = tmp.name
-                    
-                    # Tambahkan gambar signature
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png", mode='wb') as tmp:
+                    tmp.write(signature_data)
+                    tmp.flush()
                     current_x = pdf.get_x()
                     current_y = pdf.get_y()
-                    
-                    try:
-                        pdf.image(tmp_path, x=current_x + 10, y=current_y, w=60, h=25)
-                        signature_displayed = True
-                        pdf.ln(28)
-                        
-                        # Garis bawah signature
-                        pdf.set_draw_color(0, 0, 0)
-                        pdf.line(current_x + 10, current_y + 25, current_x + 70, current_y + 25)
-                    except Exception as img_err:
-                        print(f"Error displaying image: {img_err}")
-                        
-            except Exception as e:
-                print(f"Error processing signature: {e}")
-        
-        if not signature_displayed:
+                    pdf.image(tmp.name, x=current_x + 10, y=current_y, w=60, h=25)
+                    pdf.ln(28)
+                    pdf.set_draw_color(0, 0, 0)
+                    pdf.line(current_x + 10, current_y + 25, current_x + 70, current_y + 25)
+            except:
+                pdf.set_font("Arial", "I", 8)
+                pdf.cell(0, 6, "[Signature not available]", align='L')
+                pdf.ln()
+        else:
             pdf.set_font("Arial", "I", 8)
-            pdf.cell(0, 6, "[No digital signature available]", align='L')
+            pdf.cell(0, 6, "[No digital signature]", align='L')
             pdf.ln()
         
         pdf.ln(5)
@@ -560,104 +674,9 @@ def generate_pdf(record, title):
                 pass
 
     try:
-        return pdf.output(dest="S").encode("latin-1")
-    except UnicodeEncodeError:
         return pdf.output(dest="S").encode("latin-1", errors="ignore")
-
-# ---------------------------
-# SIGNATURE PAD COMPONENT
-# ---------------------------
-def signature_pad():
-    """HTML Canvas untuk tanda tangan"""
-    signature_html = """
-    <div style="border: 2px solid #ddd; border-radius: 8px; padding: 10px; background: white;">
-        <p style="margin: 5px 0; font-weight: bold;">✍️ Tanda Tangan Digital:</p>
-        <canvas id="signatureCanvas" width="400" height="150" style="border: 1px solid #999; cursor: crosshair; background: white;"></canvas>
-        <br>
-        <button onclick="clearSignature()" style="margin-top: 10px; padding: 8px 15px; background: #ff4b4b; color: white; border: none; border-radius: 5px; cursor: pointer;">🗑️ Clear</button>
-        <input type="hidden" id="signatureData" name="signatureData">
-    </div>
-
-    <script>
-        const canvas = document.getElementById('signatureCanvas');
-        const ctx = canvas.getContext('2d');
-        let isDrawing = false;
-        let lastX = 0;
-        let lastY = 0;
-
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('mouseout', stopDrawing);
-
-        // Touch support
-        canvas.addEventListener('touchstart', handleTouch);
-        canvas.addEventListener('touchmove', handleTouchMove);
-        canvas.addEventListener('touchend', stopDrawing);
-
-        function startDrawing(e) {
-            isDrawing = true;
-            [lastX, lastY] = [e.offsetX, e.offsetY];
-        }
-
-        function draw(e) {
-            if (!isDrawing) return;
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.lineJoin = 'round';
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(e.offsetX, e.offsetY);
-            ctx.stroke();
-            [lastX, lastY] = [e.offsetX, e.offsetY];
-            
-            // Save signature as base64
-            document.getElementById('signatureData').value = canvas.toDataURL('image/png');
-        }
-
-        function stopDrawing() {
-            isDrawing = false;
-        }
-
-        function handleTouch(e) {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            lastX = touch.clientX - rect.left;
-            lastY = touch.clientY - rect.top;
-            isDrawing = true;
-        }
-
-        function handleTouchMove(e) {
-            if (!isDrawing) return;
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            const x = touch.clientX - rect.left;
-            const y = touch.clientY - rect.top;
-            
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.lineJoin = 'round';
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(x, y);
-            ctx.stroke();
-            lastX = x;
-            lastY = y;
-            
-            document.getElementById('signatureData').value = canvas.toDataURL('image/png');
-        }
-
-        function clearSignature() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            document.getElementById('signatureData').value = '';
-        }
-    </script>
-    """
-    return signature_html
+    except:
+        return pdf.output(dest="S").encode("latin-1", errors="ignore")
 
 # ---------------------------
 # MAIN APP
@@ -696,7 +715,7 @@ def main():
     user = st.session_state['user']
     st.success(f"Halo, {user['fullname']} ({user['role']})")
     
-    # Menu dengan Profile untuk Manager
+    # Menu
     if user['role'] == 'manager':
         menu = st.radio("Pilih Menu", ["Checklist", "Calibration", "Profile"], horizontal=True)
     elif user['role'] == 'admin':
@@ -704,7 +723,7 @@ def main():
     else:
         menu = st.radio("Pilih Menu", ["Checklist", "Calibration"], horizontal=True)
 
-    # === Profile Menu (untuk upload signature) ===
+    # === Profile Menu ===
     if menu == "Profile" and user['role'] == 'manager':
         st.header("👤 Manager Profile")
         st.write(f"**Nama:** {user['fullname']}")
@@ -738,7 +757,6 @@ def main():
                 date = col1.date_input("Tanggal", value=datetime.today())
                 machine = col1.selectbox("Machine / Area", ["Papper Machine 1", "Papper Machine 2", "Boiler", "WWTP", "Other"])
                 
-                # Sub area dengan menu bertingkat untuk Paper Machine 1
                 sub_area_options = {
                     "Papper Machine 1": [
                         "WRAPPING & REWINDER",
@@ -757,17 +775,123 @@ def main():
                 }
                 sub_area = col1.selectbox("Sub Area", sub_area_options.get(machine, ["N/A"]))
                 shift = col2.selectbox("Shift", ["Pagi", "Siang", "Malam"])
-                item = col1.selectbox("Item yang diperiksa", ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"])
-                condition = col1.selectbox("Condition", ["Good", "Minor", "Bad"])
-                note = st.text_area("Keterangan / Temuan")
-                st.markdown("#### 📷 Upload Gambar (Opsional)")
-                col_img1, col_img2 = st.columns(2)
-                image_before = col_img1.file_uploader("Foto Before", type=['png', 'jpg', 'jpeg'], key="before")
-                image_after = col_img2.file_uploader("Foto After", type=['png', 'jpg', 'jpeg'], key="after")
+                
+                is_wrapping_rewinder = (machine == "Papper Machine 1" and sub_area == "WRAPPING & REWINDER")
+                
+                if is_wrapping_rewinder:
+                    st.markdown("### 📋 Checklist Table - WRAPPING & REWINDER")
+                    st.info("Isi checklist untuk semua part di bawah ini")
+                    
+                    parts_list = [
+                        "P1 - Upender",
+                        "P2 - Winder Platform",
+                        "P3 - Winder Rope Feed",
+                        "P4 - Winder Drive Stretcher",
+                        "P5 - Winder Blade",
+                        "P6 - Winder Blade Roll",
+                        "P7 - Winder Belt Stretcher",
+                        "P8 - Winder Drive Lock",
+                        "P9 - Winder Brake",
+                        "P10 - Power Pack Unit",
+                        "P11 - Paper Care"
+                    ]
+                    
+                    if 'checklist_table' not in st.session_state:
+                        st.session_state.checklist_table = {}
+                    
+                    st.markdown("| Part | Pneumatic | Hydraulic | Pressure | Connector | Sensor | Pumps | Packing | Display | Accuracy | Note |")
+                    st.markdown("|------|-----------|-----------|----------|-----------|--------|-------|---------|---------|----------|------|")
+                    
+                    for idx, part in enumerate(parts_list):
+                        st.markdown(f"#### {part}")
+                        cols = st.columns([2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3])
+                        
+                        with cols[0]:
+                            st.write(f"**{part}**")
+                        
+                        pneumatic = cols[1].checkbox("✓", value=True, key=f"pn_{idx}", label_visibility="collapsed")
+                        hydraulic = cols[2].checkbox("✓", value=True, key=f"hy_{idx}", label_visibility="collapsed")
+                        pressure = cols[3].checkbox("✓", value=True, key=f"pr_{idx}", label_visibility="collapsed")
+                        connector = cols[4].checkbox("✓", value=True, key=f"co_{idx}", label_visibility="collapsed")
+                        sensor = cols[5].checkbox("✓", value=True, key=f"se_{idx}", label_visibility="collapsed")
+                        pumps = cols[6].checkbox("✓", value=True, key=f"pu_{idx}", label_visibility="collapsed")
+                        packing = cols[7].checkbox("✓", value=True, key=f"pa_{idx}", label_visibility="collapsed")
+                        display = cols[8].checkbox("✓", value=True, key=f"di_{idx}", label_visibility="collapsed")
+                        accuracy = cols[9].checkbox("✓", value=True, key=f"ac_{idx}", label_visibility="collapsed")
+                        note_part = cols[10].text_input("Note", key=f"note_{idx}", label_visibility="collapsed")
+                        
+                        st.session_state.checklist_table[part] = {
+                            'pneumatic': pneumatic,
+                            'hydraulic': hydraulic,
+                            'pressure': pressure,
+                            'connector': connector,
+                            'sensor': sensor,
+                            'pumps': pumps,
+                            'packing': packing,
+                            'display': display,
+                            'accuracy': accuracy,
+                            'note': note_part
+                        }
+                    
+                    st.markdown("---")
+                    st.markdown("#### 📷 Upload Gambar (Opsional)")
+                    col_img1, col_img2 = st.columns(2)
+                    image_before = col_img1.file_uploader("Foto Before", type=['png', 'jpg', 'jpeg'], key="before")
+                    image_after = col_img2.file_uploader("Foto After", type=['png', 'jpg', 'jpeg'], key="after")
+                    
+                    if st.form_submit_button("💾 Simpan Semua Checklist", use_container_width=True):
+                        checklist_data = []
+                        for part, data in st.session_state.checklist_table.items():
+                            all_ok = all([data['pneumatic'], data['hydraulic'], data['pressure'], 
+                                        data['connector'], data['sensor'], data['pumps'], 
+                                        data['packing'], data['display'], data['accuracy']])
+                            condition = "Good" if all_ok else "Minor"
+                            
+                            details = {
+                                "pneumatic_cylinder": "OK" if data['pneumatic'] else "NG",
+                                "hydraulic_cylinder": "OK" if data['hydraulic'] else "NG",
+                                "pressure_gauge": "OK" if data['pressure'] else "NG",
+                                "connector": "OK" if data['connector'] else "NG",
+                                "sensor": "OK" if data['sensor'] else "NG",
+                                "pumps": "OK" if data['pumps'] else "NG",
+                                "packing_seal": "OK" if data['packing'] else "NG",
+                                "display": "OK" if data['display'] else "NG",
+                                "accuracy": "OK" if data['accuracy'] else "NG"
+                            }
+                            
+                            checklist_data.append({
+                                'item': part,
+                                'condition': condition,
+                                'note': data['note'],
+                                'details': details
+                            })
+                        
+                        if save_checklist_batch(user['id'], date, machine, sub_area, shift, checklist_data, image_before, image_after):
+                            st.session_state.checklist_table = {}
+                            st.rerun()
+                
+                else:
+                    item_options = {
+                        "Papper Machine 1": {"default": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"]},
+                        "Papper Machine 2": {"default": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"]},
+                        "Boiler": {"default": ["Motor", "Pump", "Bearing", "Belt", "Valve", "Pressure Gauge", "Temperature Sensor", "Other"]},
+                        "WWTP": {"default": ["Motor", "Pump", "Bearing", "Belt", "Valve", "Sensor", "Other"]},
+                        "Other": {"default": ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"]}
+                    }
+                    
+                    item_list = item_options.get(machine, {}).get("default", ["Motor", "Pump", "Bearing", "Belt", "Gearbox", "Oil Level", "Sensor", "Other"])
+                    item = col1.selectbox("Item yang diperiksa", item_list)
+                    condition = col1.selectbox("Condition", ["Good", "Minor", "Bad"])
+                    note = st.text_area("Keterangan / Temuan")
+                    
+                    st.markdown("#### 📷 Upload Gambar (Opsional)")
+                    col_img1, col_img2 = st.columns(2)
+                    image_before = col_img1.file_uploader("Foto Before", type=['png', 'jpg', 'jpeg'], key="before")
+                    image_after = col_img2.file_uploader("Foto After", type=['png', 'jpg', 'jpeg'], key="after")
 
-                if st.form_submit_button("💾 Simpan Checklist", use_container_width=True):
-                    if save_checklist(user['id'], date, machine, sub_area, shift, item, condition, note, image_before, image_after):
-                        st.rerun()
+                    if st.form_submit_button("💾 Simpan Checklist", use_container_width=True):
+                        if save_checklist(user['id'], date, machine, sub_area, shift, item, condition, note, image_before, image_after, None):
+                            st.rerun()
 
         st.subheader("📋 Daftar Checklist")
         df = get_checklists() if user['role'] in ['admin', 'manager'] else get_checklists(user_id=user['id'])
@@ -775,7 +899,7 @@ def main():
             display_df = df[['id', 'date', 'machine', 'sub_area', 'shift', 'item', 'condition', 'note', 'approval_status']]
             st.dataframe(display_df, use_container_width=True, hide_index=True)
             
-            # Fitur Approval untuk Manager
+            # Approval untuk Manager
             if user['role'] == 'manager':
                 st.markdown("### ✅ Approval Checklist")
                 pending_df = df[df['approval_status'] == 'Pending']
@@ -785,7 +909,6 @@ def main():
                     
                     if sel_approve:
                         st.markdown("---")
-                        # Preview data yang akan di-approve
                         preview_data = pending_df[pending_df['id'] == int(sel_approve)].iloc[0]
                         st.write("**Preview Data:**")
                         col_a, col_b, col_c = st.columns(3)
@@ -793,17 +916,14 @@ def main():
                         col_b.write(f"**Item:** {preview_data['item']}")
                         col_c.write(f"**Condition:** {preview_data['condition']}")
                         
-                        # Upload tanda tangan untuk approval
                         st.markdown("#### ✍️ Tanda Tangan untuk Approval")
                         
                         if user.get('signature'):
                             st.success("✅ Menggunakan tanda tangan tersimpan dari profile")
-                            
-                            # Preview signature tersimpan
                             try:
                                 sig_bytes = user['signature']
                                 if isinstance(sig_bytes, bytes) and len(sig_bytes) > 0:
-                                    st.image(sig_bytes, width=200, caption="Preview Tanda Tangan Tersimpan")
+                                    st.image(sig_bytes, width=200, caption="Preview Tanda Tangan")
                             except:
                                 pass
                             
@@ -815,15 +935,14 @@ def main():
                             else:
                                 signature_to_use = user['signature']
                         else:
-                            st.warning("⚠️ Anda belum upload tanda tangan di Profile. Silakan upload tanda tangan untuk approval.")
+                            st.warning("⚠️ Silakan upload tanda tangan di Profile terlebih dahulu")
                             signature_upload = st.file_uploader("Upload Tanda Tangan", type=['png', 'jpg', 'jpeg'], key="sig_check")
                             signature_to_use = signature_upload.read() if signature_upload else None
                         
                         if signature_to_use and col2.button("✅ Approve", key="btn_approve_checklist"):
-                            # Debug: cek apakah signature ada
                             if isinstance(signature_to_use, bytes) and len(signature_to_use) > 0:
                                 if approve_checklist(int(sel_approve), user['fullname'], signature_to_use):
-                                    st.success(f"✅ Checklist ID {sel_approve} berhasil di-approve dengan tanda tangan!")
+                                    st.success(f"✅ Checklist ID {sel_approve} berhasil di-approve!")
                                     st.rerun()
                             else:
                                 st.error("❌ Data tanda tangan tidak valid!")
@@ -834,26 +953,51 @@ def main():
             
             # Download PDF
             st.markdown("---")
-            sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist(), key="pdf_checklist")
-            if sel:
-                rec = df[df['id'] == int(sel)].iloc[0].to_dict()
+            st.subheader("📄 Download PDF Report")
+            
+            # Filter untuk WRAPPING & REWINDER
+            wrapping_df = df[(df['machine'] == 'Papper Machine 1') & (df['sub_area'] == 'WRAPPING & REWINDER')]
+            
+            if not wrapping_df.empty:
+                # Group by date and shift
+                unique_sessions = wrapping_df.groupby(['date', 'shift']).size().reset_index()[['date', 'shift']]
                 
-                # Debug info untuk melihat apakah signature ada
-                if rec.get('approval_status') == 'Approved':
-                    sig_data = rec.get('signature')
-                    if sig_data and isinstance(sig_data, bytes) and len(sig_data) > 0:
-                        st.success(f"✅ Data ini memiliki tanda tangan (Size: {len(sig_data)} bytes)")
-                        # Show preview
-                        try:
-                            st.image(sig_data, width=200, caption="Preview Tanda Tangan di Database")
-                        except:
-                            st.info("Signature ada tapi tidak bisa di-preview")
-                    else:
-                        st.warning("⚠️ Data ini sudah di-approve tapi tidak ada tanda tangan.")
-                        st.info(f"Debug: signature type = {type(sig_data)}, value = {sig_data}")
+                st.markdown("#### 🔧 WRAPPING & REWINDER (All Parts in One PDF)")
+                session_options = [""] + [f"{row['date']} - Shift {row['shift']}" for _, row in unique_sessions.iterrows()]
+                sel_session = st.selectbox("Pilih Tanggal & Shift", session_options, key="pdf_wrapping")
                 
-                pdf_bytes = generate_pdf(rec, "Checklist Maintenance")
-                st.download_button("📄 Download PDF", data=pdf_bytes, file_name=f"checklist_{sel}.pdf", mime="application/pdf")
+                if sel_session:
+                    selected_date, selected_shift = sel_session.split(" - Shift ")
+                    session_df = wrapping_df[(wrapping_df['date'] == selected_date) & (wrapping_df['shift'] == selected_shift)]
+                    
+                    if not session_df.empty:
+                        first_rec = session_df.iloc[0]
+                        pdf_bytes = generate_pdf_wrapping_rewinder(
+                            session_df, 
+                            selected_date, 
+                            selected_shift,
+                            first_rec.get('input_by', 'N/A')
+                        )
+                        st.download_button(
+                            "📄 Download PDF - WRAPPING & REWINDER", 
+                            data=pdf_bytes, 
+                            file_name=f"wrapping_rewinder_{selected_date}_{selected_shift}.pdf", 
+                            mime="application/pdf"
+                        )
+            
+            # Download individual checklist
+            st.markdown("#### 📋 Individual Checklist PDF")
+            non_wrapping_df = df[~((df['machine'] == 'Papper Machine 1') & (df['sub_area'] == 'WRAPPING & REWINDER'))]
+            
+            if not non_wrapping_df.empty:
+                sel = st.selectbox("Pilih ID untuk download", [""] + non_wrapping_df['id'].astype(str).tolist(), key="pdf_individual")
+                if sel:
+                    rec = df[df['id'] == int(sel)].iloc[0].to_dict()
+                    pdf_bytes = generate_pdf(rec, "Checklist Maintenance")
+                    st.download_button("📄 Download PDF", data=pdf_bytes, file_name=f"checklist_{sel}.pdf", mime="application/pdf")
+            else:
+                st.info("Tidak ada checklist individual untuk di-download")
+                
         else:
             st.info("Belum ada data checklist.")
 
@@ -877,7 +1021,7 @@ def main():
             display_df = df[['id', 'date', 'instrument', 'procedure', 'result', 'remarks', 'approval_status']]
             st.dataframe(display_df, use_container_width=True, hide_index=True)
             
-            # Fitur Approval untuk Manager
+            # Approval untuk Manager
             if user['role'] == 'manager':
                 st.markdown("### ✅ Approval Calibration")
                 pending_df = df[df['approval_status'] == 'Pending']
@@ -887,7 +1031,6 @@ def main():
                     
                     if sel_approve:
                         st.markdown("---")
-                        # Preview data yang akan di-approve
                         preview_data = pending_df[pending_df['id'] == int(sel_approve)].iloc[0]
                         st.write("**Preview Data:**")
                         col_a, col_b, col_c = st.columns(3)
@@ -895,42 +1038,38 @@ def main():
                         col_b.write(f"**Result:** {preview_data['result']}")
                         col_c.write(f"**Date:** {preview_data['date']}")
                         
-                        # Upload tanda tangan untuk approval
                         st.markdown("#### ✍️ Tanda Tangan untuk Approval")
                         
                         if user.get('signature'):
-                            st.success("✅ Menggunakan tanda tangan tersimpan dari profile")
-                            
-                            # Preview signature tersimpan
+                            st.success("✅ Menggunakan tanda tangan tersimpan")
                             try:
                                 sig_bytes = user['signature']
                                 if isinstance(sig_bytes, bytes) and len(sig_bytes) > 0:
-                                    st.image(sig_bytes, width=200, caption="Preview Tanda Tangan Tersimpan")
+                                    st.image(sig_bytes, width=200, caption="Preview")
                             except:
                                 pass
                             
                             use_saved = st.checkbox("Gunakan tanda tangan tersimpan", value=True, key="use_saved_sig_cal")
                             
                             if not use_saved:
-                                new_signature = st.file_uploader("Upload tanda tangan baru", type=['png', 'jpg', 'jpeg'], key="new_sig_cal")
+                                new_signature = st.file_uploader("Upload baru", type=['png', 'jpg', 'jpeg'], key="new_sig_cal")
                                 signature_to_use = new_signature.read() if new_signature else None
                             else:
                                 signature_to_use = user['signature']
                         else:
-                            st.warning("⚠️ Anda belum upload tanda tangan di Profile. Silakan upload tanda tangan untuk approval.")
+                            st.warning("⚠️ Silakan upload tanda tangan di Profile")
                             signature_upload = st.file_uploader("Upload Tanda Tangan", type=['png', 'jpg', 'jpeg'], key="sig_cal")
                             signature_to_use = signature_upload.read() if signature_upload else None
                         
                         if signature_to_use and col2.button("✅ Approve", key="btn_approve_calibration"):
-                            # Debug: cek apakah signature ada
                             if isinstance(signature_to_use, bytes) and len(signature_to_use) > 0:
                                 if approve_calibration(int(sel_approve), user['fullname'], signature_to_use):
-                                    st.success(f"✅ Calibration ID {sel_approve} berhasil di-approve dengan tanda tangan!")
+                                    st.success(f"✅ Calibration ID {sel_approve} berhasil di-approve!")
                                     st.rerun()
                             else:
                                 st.error("❌ Data tanda tangan tidak valid!")
                         elif not signature_to_use and col2.button("✅ Approve", key="btn_approve_calibration_no_sig"):
-                            st.error("❌ Harap upload tanda tangan terlebih dahulu!")
+                            st.error("❌ Harap upload tanda tangan!")
                 else:
                     st.info("✅ Semua calibration sudah di-approve")
             
@@ -939,21 +1078,6 @@ def main():
             sel = st.selectbox("Pilih ID untuk download PDF", [""] + df['id'].astype(str).tolist(), key="pdf_cal")
             if sel:
                 rec = df[df['id'] == int(sel)].iloc[0].to_dict()
-                
-                # Debug info untuk melihat apakah signature ada
-                if rec.get('approval_status') == 'Approved':
-                    sig_data = rec.get('signature')
-                    if sig_data and isinstance(sig_data, bytes) and len(sig_data) > 0:
-                        st.success(f"✅ Data ini memiliki tanda tangan (Size: {len(sig_data)} bytes)")
-                        # Show preview
-                        try:
-                            st.image(sig_data, width=200, caption="Preview Tanda Tangan di Database")
-                        except:
-                            st.info("Signature ada tapi tidak bisa di-preview")
-                    else:
-                        st.warning("⚠️ Data ini sudah di-approve tapi tidak ada tanda tangan.")
-                        st.info(f"Debug: signature type = {type(sig_data)}, value = {sig_data}")
-                
                 pdf_bytes = generate_pdf(rec, "Calibration Report")
                 st.download_button("📄 Download PDF", data=pdf_bytes, file_name=f"calibration_{sel}.pdf", mime="application/pdf")
         else:
@@ -979,4 +1103,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
