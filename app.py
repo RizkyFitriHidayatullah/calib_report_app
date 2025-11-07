@@ -460,7 +460,7 @@ def generate_pdf_wrapping_rewinder(df_records, date, shift, user_name):
     
     # Header
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 8, "CHECKLIST MAINTENANCE - WRAPPING & REWINDER", ln=True, align="C")
+    pdf.cell(0, 8, "PREVENTIVE MAINTENANCE CHECKLIST PM1 - WRAPPING & REWINDER", ln=True, align="C")
     pdf.ln(3)
     
     # Info
@@ -471,8 +471,9 @@ def generate_pdf_wrapping_rewinder(df_records, date, shift, user_name):
     pdf.ln(8)
     
     # Header Tabel
-    headers = ["No", "Part", "Pneu", "Hydr", "Press", "Conn", "Sens", "Pump", "Pack", "Disp", "Accu", "Note"]
-    col_widths = [10, 45, 10, 10, 10, 10, 10, 10, 10, 10, 10, 82]
+    headers = ["No", "Unit - Position", "Pneumatic", "Hydraulic", "Pressure", "Connector", "Sensor", "Pump", "Packing", "Display", "Accuracy", "Note"]
+    col_widths = [10, 30, 23, 23, 23, 23, 23, 23, 23, 23, 23, 30]
+
     
     pdf.set_font("Arial", "B", 7)
     pdf.set_fill_color(200, 200, 200)
