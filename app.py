@@ -42,89 +42,56 @@ def inject_bootstrap():
         .card {padding:1.5rem; border-radius:.7rem; box-shadow:0 2px 6px rgba(0,0,0,0.08); margin-top:1rem;}
         .form-label {font-weight:600;}
         .small-muted {font-size:0.9rem;color:#6c757d;}
-
-        /* Center container */
-        .center-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            min-height: 100vh;
-            padding: 1rem;
-        }
-
-        .card-login {
-            max-width: 400px;
-            width: 100%;
-            text-align: center;
-        }
-
+                
+        
         /* Mobile Responsive Styles */
         @media (max-width: 768px) {
             .stDataFrame {
                 font-size: 0.75rem !important;
                 overflow-x: auto !important;
             }
-
+            
             .stSelectbox, .stTextInput, .stTextArea {
                 font-size: 0.9rem !important;
             }
-
+            
             .card {
                 padding: 0.8rem !important;
             }
-
-            h1 { font-size: 1.5rem !important; }
-            h2 { font-size: 1.3rem !important; }
-            h3 { font-size: 1.1rem !important; }
-            h4 { font-size: 1rem !important; }
-
-            .checklist-mobile { font-size: 0.7rem !important; }
-            .stMarkdown { margin-bottom: 0.5rem !important; }
-            .stCheckbox label { font-size: 0.8rem !important; }
+            
+            h1 {
+                font-size: 1.5rem !important;
+            }
+            
+            h2 {
+                font-size: 1.3rem !important;
+            }
+            
+            h3 {
+                font-size: 1.1rem !important;
+            }
+            
+            h4 {
+                font-size: 1rem !important;
+            }
+            
+            /* Compact table for checklist */
+            .checklist-mobile {
+                font-size: 0.7rem !important;
+            }
+            
+            /* Better spacing for mobile */
+            .stMarkdown {
+                margin-bottom: 0.5rem !important;
+            }
+            
+            /* Checkbox labels */
+            .stCheckbox label {
+                font-size: 0.8rem !important;
+            }
         }
     </style>
     """, unsafe_allow_html=True)
-
-
-# ---------------------------
-# MAIN APP
-# ---------------------------
-inject_bootstrap()
-
-st.markdown("<div class='center-container'>", unsafe_allow_html=True)
-
-st.markdown("""
-<div class='card card-login'>
-    <h2>Maintenance & Calibration System</h2>
-    <p class='small-muted'>Gunakan akun yang sudah ditentukan.</p>
-</div>
-""", unsafe_allow_html=True)
-
-if 'auth' not in st.session_state:
-    st.session_state['auth'] = False
-
-if not st.session_state['auth']:
-    conn = get_conn()
-    usernames = pd.read_sql("SELECT username FROM users", conn)['username'].tolist()
-    conn.close()
-
-    with st.form("login_form"):
-        st.subheader("🔐 Login")
-        selected_user = st.selectbox("Pilih Username", usernames)
-        password = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Login", use_container_width=True)
-
-        if submit:
-            ok, user = verify_user(selected_user, password)
-            if ok:
-                st.session_state['auth'] = True
-                st.session_state['user'] = user
-                st.success("Login berhasil!")
-            else:
-                st.error("Username atau password salah.")
-
-st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------------------
 # DB FUNCTIONS
