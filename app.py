@@ -553,8 +553,8 @@ def generate_pdf_wrapping_rewinder(df_records, date, shift, user_name):
                 approved_at = 'N/A'
             
             pdf.set_font("Arial", "", 8)
-            pdf.cell(60, 6, f"Approved and Reviewed by chief manager : {approved_by}", border=1)
-            pdf.cell(60, 6, f"Date: {approved_at}", border=1)
+            pdf.cell(70, 6, f"Approved and Reviewed by chief manager : {approved_by}", border=1)
+            pdf.cell(70, 6, f"Date: {approved_at}", border=1)
             pdf.ln(8)
             
             # Signature
