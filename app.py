@@ -679,7 +679,7 @@ def generate_pdf(record, title):
             approved_at = 'N/A'
         
         pdf.set_font("Arial", "", 9)
-        pdf.cell(70, 8, f"Approved by: {approved_by}", border=1, align='L')
+        pdf.cell(70, 8, f"Approved and Reviewed by: {approved_by}", border=1, align='L')
         pdf.cell(70, 8, f"Date: {approved_at}", border=1, align='L')
         pdf.ln(10)
         
