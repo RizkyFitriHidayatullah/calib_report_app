@@ -204,7 +204,7 @@ def init_db():
         ("manager", "manager123", "Manager", "manager"),
         ("operator", "operator123", "Operator", "operator"),
         ("supervisor", "supervisor123", "Supervisor", "manager"),  # User baru dengan role manager
-        ("rizky_176565", "teknik123", "Rizky/176565", "operator"),     # User baru dengan role operator
+        ("rizky", "rizky176565", "Rizky/176565", "operator"),     # User baru dengan role operator
         ("teknisi2", "teknik456", "Teknisi Dua", "operator"),      # User baru dengan role operator
     ]
     for username, password, fullname, role in default_users:
