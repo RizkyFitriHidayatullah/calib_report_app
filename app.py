@@ -42,6 +42,23 @@ def inject_bootstrap():
         .card {padding:1.5rem; border-radius:.7rem; box-shadow:0 2px 6px rgba(0,0,0,0.08); margin-top:1rem;}
         .form-label {font-weight:600;}
         .small-muted {font-size:0.9rem;color:#6c757d;}
+                /* Tambahan untuk center di tengah layar */
+.center-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    min-height: 100vh;
+    padding: 1rem;
+}
+
+/* Biar card tidak melebar di laptop */
+.card-login {
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+}
+
         
         /* Mobile Responsive Styles */
         @media (max-width: 768px) {
