@@ -202,10 +202,10 @@ def init_db():
     default_users = [
         ("admin", "admin123", "Admin", "admin"),
         ("manager", "manager123", "Manager", "manager"),
-        ("operator", "operator123", "Operator", "operator"),
+        ("Tisna", "Tisna123", "Tisna", "operator"),
         ("supervisor", "supervisor123", "Supervisor", "manager"),  # User baru dengan role manager
-        ("rizky", "rizky176565", "Rizky/176565", "operator"),     # User baru dengan role operator
-        ("teknisi2", "teknik456", "Teknisi Dua", "operator"),      # User baru dengan role operator
+        ("Rizky", "rizky176565", "Rizky/176565", "operator"),     # User baru dengan role operator
+        ("Apuy", "apuy123", "Apuy", "operator"),      # User baru dengan role operator
     ]
     for username, password, fullname, role in default_users:
         try:
