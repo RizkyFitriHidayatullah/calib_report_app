@@ -42,7 +42,6 @@ def inject_bootstrap():
         .card {padding:1.5rem; border-radius:.7rem; box-shadow:0 2px 6px rgba(0,0,0,0.08); margin-top:1rem;}
         .form-label {font-weight:600;}
         .small-muted {font-size:0.9rem;color:#6c757d;}
-                
         
         /* Mobile Responsive Styles */
         @media (max-width: 768px) {
@@ -201,12 +200,10 @@ def init_db():
         pass
 
     default_users = [
-        ("Admin", "admin123", "Admin", "admin"),
-        ("Farid", "farid123", "Farid", "manager"),
-        ("Tisna", "tisna123", "Tisna", "operator"),
-        ("supervisor", "supervisor123", "Supervisor", "manager"),  # User baru dengan role manager
-        ("Rizky", "rizky176565", "Rizky/176565", "operator"),     # User baru dengan role operator
-        ("Apuy", "apuy123", "Apuy", "operator"),      # User baru dengan role operator
+        ("admin", "admin123", "Admin", "admin"),
+        ("manager", "manager123", "Manager", "manager"),
+        ("operator", "operator123", "Operator", "operator"),
+        ("supervisor", "supervisor123", "Supervisor", "manager"),
     ]
     for username, password, fullname, role in default_users:
         try:
@@ -457,14 +454,14 @@ def approve_calibration(calibration_id, manager_name, signature_data):
 # ---------------------------
 # PDF GENERATOR
 # ---------------------------
-def generate_pdf_wrapping_rewinder(df_records, date, shift, user_name):
-    """Generate PDF khusus untuk WRAPPING & REWINDER dengan semua 11 part dalam satu halaman"""
+def generate_pdf_pope_reel(df_records, date, shift, user_name):
+    """Generate PDF khusus untuk POPE REEL & KUSTER dengan semua 10 part dalam satu halaman"""
     pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.add_page()
     
     # Header
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 8, "PREVENTIVE MAINTENANCE CHECKLIST PM1 - WRAPPING & REWINDER", ln=True, align="C")
+    pdf.cell(0, 8, "PREVENTIVE MAINTENANCE CHECKLIST PM1 - POPE REEL & KUSTER", ln=True, align="C")
     pdf.ln(3)
     
     # Info
@@ -477,7 +474,6 @@ def generate_pdf_wrapping_rewinder(df_records, date, shift, user_name):
     # Header Tabel
     headers = ["No", "Unit - Position", "Pneumatic", "Hydraulic", "Pressure", "Connector", "Sensor", "Pump", "Packing", "Display", "Accuracy", "Note"]
     col_widths = [10, 30, 21, 21, 21, 21, 21, 21, 21, 21, 21, 48]
-
     
     pdf.set_font("Arial", "B", 7)
     pdf.set_fill_color(200, 200, 200)
@@ -556,6 +552,129 @@ def generate_pdf_wrapping_rewinder(df_records, date, shift, user_name):
             pdf.set_font("Arial", "", 8)
             pdf.cell(70, 6, f"Approved and Reviewed by chief manager : {approved_by}", border=1)
             pdf.cell(70, 6, f"Date: {approved_at}", border=1)
+            pdf.ln(8)
+            
+            # Signature
+            signature_data = first_record.get("signature")
+            if signature_data and isinstance(signature_data, bytes) and len(signature_data) > 0:
+                pdf.set_font("Arial", "B", 8)
+                pdf.cell(30, 5, "Signature:", border=0)
+                pdf.ln(6)
+                
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".png", mode='wb') as tmp:
+                        tmp.write(signature_data)
+                        tmp.flush()
+                        current_x = pdf.get_x()
+                        current_y = pdf.get_y()
+                        pdf.image(tmp.name, x=current_x + 5, y=current_y, w=50, h=20)
+                        pdf.ln(22)
+                except:
+                    pass
+    
+    try:
+        return pdf.output(dest="S").encode("latin-1", errors="ignore")
+    except:
+        return pdf.output(dest="S").encode("latin-1", errors="ignore")
+
+def generate_pdf_wrapping_rewinder(df_records, date, shift, user_name):
+    """Generate PDF khusus untuk WRAPPING & REWINDER dengan semua 11 part dalam satu halaman"""
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf.add_page()
+    
+    # Header
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 8, "CHECKLIST MAINTENANCE - WRAPPING & REWINDER", ln=True, align="C")
+    pdf.ln(3)
+    
+    # Info
+    pdf.set_font("Arial", "", 9)
+    pdf.cell(60, 6, f"Date: {date}", border=0)
+    pdf.cell(60, 6, f"Shift: {shift}", border=0)
+    pdf.cell(60, 6, f"Input by: {user_name}", border=0)
+    pdf.ln(8)
+    
+    # Header Tabel
+    headers = ["No", "Part", "Pneu", "Hydr", "Press", "Conn", "Sens", "Pump", "Pack", "Disp", "Accu", "Note"]
+    col_widths = [10, 45, 10, 10, 10, 10, 10, 10, 10, 10, 10, 82]
+    
+    pdf.set_font("Arial", "B", 7)
+    pdf.set_fill_color(200, 200, 200)
+    for i, h in enumerate(headers):
+        pdf.cell(col_widths[i], 6, h, border=1, align='C', fill=True)
+    pdf.ln()
+    
+    # Isi Tabel
+    pdf.set_font("Arial", "", 6)
+    for idx, (_, record) in enumerate(df_records.iterrows(), 1):
+        details_str = record.get('details', '{}')
+        try:
+            details = json.loads(details_str) if details_str else {}
+        except:
+            details = {}
+        
+        # Status symbols
+        def get_status(key):
+            status = details.get(key, "OK")
+            return "OK" if status == "OK" else "NG"
+        
+        values = [
+            str(idx),
+            record.get('item', '')[:35],
+            get_status('pneumatic_cylinder'),
+            get_status('hydraulic_cylinder'),
+            get_status('pressure_gauge'),
+            get_status('connector'),
+            get_status('sensor'),
+            get_status('pumps'),
+            get_status('packing_seal'),
+            get_status('display'),
+            get_status('accuracy'),
+            str(record.get('note', ''))[:60]
+        ]
+        
+        # Warna untuk OK/NG
+        for i, val in enumerate(values):
+            if i >= 2 and i <= 10:  # Kolom check
+                if val == "NG":
+                    pdf.set_fill_color(255, 200, 200)  # Merah muda
+                    pdf.cell(col_widths[i], 5, val, border=1, align='C', fill=True)
+                    pdf.set_fill_color(255, 255, 255)
+                else:
+                    pdf.cell(col_widths[i], 5, val, border=1, align='C')
+            else:
+                pdf.cell(col_widths[i], 5, val, border=1, align='L' if i in [1, 11] else 'C')
+        pdf.ln()
+    
+    # Legend
+    pdf.ln(5)
+    pdf.set_font("Arial", "I", 7)
+    pdf.cell(0, 4, "Legend: OK = Kondisi Baik | NG = Ada Masalah (Background Merah)", align='L')
+    
+    # Approval Section
+    if len(df_records) > 0:
+        first_record = df_records.iloc[0]
+        if first_record.get('approval_status') == 'Approved':
+            pdf.ln(8)
+            pdf.set_font("Arial", "B", 9)
+            pdf.cell(0, 6, "APPROVAL SECTION", ln=True, align='C')
+            pdf.ln(2)
+            
+            approved_by = str(first_record.get('approved_by', 'N/A'))
+            approved_at_raw = first_record.get('approved_at', 'N/A')
+            
+            if approved_at_raw and approved_at_raw != 'N/A':
+                try:
+                    dt = datetime.fromisoformat(approved_at_raw)
+                    approved_at = dt.strftime("%Y-%m-%d %H:%M")
+                except:
+                    approved_at = str(approved_at_raw)
+            else:
+                approved_at = 'N/A'
+            
+            pdf.set_font("Arial", "", 8)
+            pdf.cell(60, 6, f"Approved by: {approved_by}", border=1)
+            pdf.cell(60, 6, f"Date: {approved_at}", border=1)
             pdf.ln(8)
             
             # Signature
@@ -851,24 +970,42 @@ def main():
                 shift = col2.selectbox("Shift", ["Pagi", "Siang", "Malam"])
                 
                 is_wrapping_rewinder = (machine == "Papper Machine 1" and sub_area == "WRAPPING & REWINDER")
+                is_pope_reel = (machine == "Papper Machine 1" and sub_area == "POPE REEL & KUSTER")
                 
-                if is_wrapping_rewinder:
-                    st.markdown("### 📋 Checklist - WRAPPING & REWINDER")
-                    st.info("Centang ✓ jika OK, kosongkan jika ada masalah")
+                if is_wrapping_rewinder or is_pope_reel:
+                    # Tentukan parts list berdasarkan area
+                    if is_wrapping_rewinder:
+                        area_title = "WRAPPING & REWINDER"
+                        parts_list = [
+                            "P1 - Upender",
+                            "P2 - Winder Platform",
+                            "P3 - Winder Rope Feed",
+                            "P4 - Winder Drive Stretcher",
+                            "P5 - Winder Blade",
+                            "P6 - Winder Blade Roll",
+                            "P7 - Winder Belt Stretcher",
+                            "P8 - Winder Drive Lock",
+                            "P9 - Winder Brake",
+                            "P10 - Power Pack Unit",
+                            "P11 - Paper Care"
+                        ]
+                    else:  # POPE REEL & KUSTER
+                        area_title = "POPE REEL & KUSTER"
+                        parts_list = [
+                            "P1 - Power Pack Unit",
+                            "P2 - Primary Arm Hydraulic",
+                            "P3 - Secondary Arm Hydraulic",
+                            "P4 - Pneumatic Clamping",
+                            "P5 - Pneumatic Stopper Reel",
+                            "P6 - Air Clutch",
+                            "P7 - Pneumatic Brake",
+                            "P8 - Kuster",
+                            "P9 - PV COM",
+                            "P10 - Seml Scan (0-Frame)"
+                        ]
                     
-                    parts_list = [
-                        "P1 - Upender",
-                        "P2 - Winder Platform",
-                        "P3 - Winder Rope Feed",
-                        "P4 - Winder Drive Stretcher",
-                        "P5 - Winder Blade",
-                        "P6 - Winder Blade Roll",
-                        "P7 - Winder Belt Stretcher",
-                        "P8 - Winder Drive Lock",
-                        "P9 - Winder Brake",
-                        "P10 - Power Pack Unit",
-                        "P11 - Paper Care"
-                    ]
+                    st.markdown(f"### 📋 Checklist - {area_title}")
+                    st.info("Centang ✓ jika OK, kosongkan jika ada masalah")
                     
                     if 'checklist_table' not in st.session_state:
                         st.session_state.checklist_table = {}
@@ -1001,23 +1138,33 @@ def main():
                 pending_df = df[df['approval_status'] == 'Pending']
                 
                 if not pending_df.empty:
-                    # Cek apakah ada WRAPPING & REWINDER
+                    # Cek apakah ada WRAPPING & REWINDER atau POPE REEL & KUSTER
                     wrapping_pending = pending_df[(pending_df['machine'] == 'Papper Machine 1') & (pending_df['sub_area'] == 'WRAPPING & REWINDER')]
+                    pope_pending = pending_df[(pending_df['machine'] == 'Papper Machine 1') & (pending_df['sub_area'] == 'POPE REEL & KUSTER')]
                     
-                    if not wrapping_pending.empty:
-                        st.markdown("#### 🔧 Batch Approval - WRAPPING & REWINDER")
+                    # Gabungkan untuk batch approval
+                    batch_pending = pd.concat([wrapping_pending, pope_pending])
+                    
+                    if not batch_pending.empty:
+                        st.markdown("#### 🔧 Batch Approval - PM1 Detailed Checklist")
                         st.info("Approve semua checklist untuk satu shift sekaligus")
                         
-                        # Group by date and shift
-                        unique_sessions = wrapping_pending.groupby(['date', 'shift']).size().reset_index()[['date', 'shift']]
+                        # Group by sub_area, date and shift
+                        unique_sessions = batch_pending.groupby(['sub_area', 'date', 'shift']).size().reset_index()[['sub_area', 'date', 'shift']]
                         
                         # Mobile-friendly layout
-                        session_options = [""] + [f"{row['date']} - Shift {row['shift']}" for _, row in unique_sessions.iterrows()]
-                        sel_session = st.selectbox("📅 Pilih Tanggal & Shift", session_options, key="approve_session")
+                        session_options = [""] + [f"{row['sub_area']} - {row['date']} - Shift {row['shift']}" for _, row in unique_sessions.iterrows()]
+                        sel_session = st.selectbox("📅 Pilih Area, Tanggal & Shift", session_options, key="approve_session")
                         
                         if sel_session:
-                            selected_date, selected_shift = sel_session.split(" - Shift ")
-                            session_df = wrapping_pending[(wrapping_pending['date'] == selected_date) & (wrapping_pending['shift'] == selected_shift)]
+                            parts = sel_session.split(" - ")
+                            selected_area = parts[0]
+                            selected_date = parts[1]
+                            selected_shift = parts[2].replace("Shift ", "")
+                            
+                            session_df = batch_pending[(batch_pending['sub_area'] == selected_area) & 
+                                                       (batch_pending['date'] == selected_date) & 
+                                                       (batch_pending['shift'] == selected_shift)]
                             
                             st.success(f"✅ Total {len(session_df)} items akan di-approve")
                             
@@ -1069,13 +1216,15 @@ def main():
                     # Individual Approval untuk checklist lainnya
                     st.markdown("---")
                     st.markdown("#### 📋 Individual Approval")
-                    non_wrapping_pending = pending_df[~((pending_df['machine'] == 'Papper Machine 1') & (pending_df['sub_area'] == 'WRAPPING & REWINDER'))]
+                    detailed_areas = ['WRAPPING & REWINDER', 'POPE REEL & KUSTER']
+                    non_batch_pending = pending_df[~((pending_df['machine'] == 'Papper Machine 1') & 
+                                                     (pending_df['sub_area'].isin(detailed_areas)))]
                     
-                    if not non_wrapping_pending.empty:
-                        sel_approve = st.selectbox("Pilih ID", [""] + non_wrapping_pending['id'].astype(str).tolist(), key="approve_individual")
+                    if not non_batch_pending.empty:
+                        sel_approve = st.selectbox("Pilih ID", [""] + non_batch_pending['id'].astype(str).tolist(), key="approve_individual")
                         
                         if sel_approve:
-                            preview_data = non_wrapping_pending[non_wrapping_pending['id'] == int(sel_approve)].iloc[0]
+                            preview_data = non_batch_pending[non_batch_pending['id'] == int(sel_approve)].iloc[0]
                             
                             # Compact preview untuk mobile
                             with st.expander("📋 Preview Data", expanded=True):
@@ -1128,42 +1277,57 @@ def main():
             st.markdown("---")
             st.subheader("📄 Download PDF Report")
             
-            # Filter untuk WRAPPING & REWINDER
-            wrapping_df = df[(df['machine'] == 'Papper Machine 1') & (df['sub_area'] == 'WRAPPING & REWINDER')]
+            # Filter untuk detailed checklist areas (WRAPPING & REWINDER dan POPE REEL & KUSTER)
+            detailed_areas = ['WRAPPING & REWINDER', 'POPE REEL & KUSTER']
+            detailed_df = df[(df['machine'] == 'Papper Machine 1') & (df['sub_area'].isin(detailed_areas))]
             
-            if not wrapping_df.empty:
-                # Group by date and shift
-                unique_sessions = wrapping_df.groupby(['date', 'shift']).size().reset_index()[['date', 'shift']]
+            if not detailed_df.empty:
+                # Group by sub_area, date and shift
+                unique_sessions = detailed_df.groupby(['sub_area', 'date', 'shift']).size().reset_index()[['sub_area', 'date', 'shift']]
                 
-                st.markdown("#### 🔧 WRAPPING & REWINDER (All Parts in One PDF)")
-                session_options = [""] + [f"{row['date']} - Shift {row['shift']}" for _, row in unique_sessions.iterrows()]
-                sel_session = st.selectbox("Pilih Tanggal & Shift", session_options, key="pdf_wrapping")
+                st.markdown("#### 🔧 PM1 Detailed Checklist (All Parts in One PDF)")
+                session_options = [""] + [f"{row['sub_area']} - {row['date']} - Shift {row['shift']}" for _, row in unique_sessions.iterrows()]
+                sel_session = st.selectbox("Pilih Area, Tanggal & Shift", session_options, key="pdf_detailed")
                 
                 if sel_session:
-                    selected_date, selected_shift = sel_session.split(" - Shift ")
-                    session_df = wrapping_df[(wrapping_df['date'] == selected_date) & (wrapping_df['shift'] == selected_shift)]
+                    parts = sel_session.split(" - ")
+                    selected_area = parts[0]
+                    selected_date = parts[1]
+                    selected_shift = parts[2].replace("Shift ", "")
+                    
+                    session_df = detailed_df[(detailed_df['sub_area'] == selected_area) & 
+                                            (detailed_df['date'] == selected_date) & 
+                                            (detailed_df['shift'] == selected_shift)]
                     
                     if not session_df.empty:
                         first_rec = session_df.iloc[0]
-                        pdf_bytes = generate_pdf_wrapping_rewinder(
-                            session_df, 
-                            selected_date, 
-                            selected_shift,
-                            first_rec.get('input_by', 'N/A')
-                        )
+                        
+                        # Gunakan PDF generator yang sesuai
+                        if selected_area == 'WRAPPING & REWINDER':
+                            pdf_bytes = generate_pdf_wrapping_rewinder(
+                                session_df, selected_date, selected_shift, first_rec.get('input_by', 'N/A')
+                            )
+                            filename = f"wrapping_rewinder_{selected_date}_{selected_shift}.pdf"
+                        else:  # POPE REEL & KUSTER
+                            pdf_bytes = generate_pdf_pope_reel(
+                                session_df, selected_date, selected_shift, first_rec.get('input_by', 'N/A')
+                            )
+                            filename = f"pope_reel_kuster_{selected_date}_{selected_shift}.pdf"
+                        
                         st.download_button(
-                            "📄 Download PDF - WRAPPING & REWINDER", 
+                            f"📄 Download PDF - {selected_area}", 
                             data=pdf_bytes, 
-                            file_name=f"wrapping_rewinder_{selected_date}_{selected_shift}.pdf", 
+                            file_name=filename, 
                             mime="application/pdf"
                         )
             
             # Download individual checklist
             st.markdown("#### 📋 Individual Checklist PDF")
-            non_wrapping_df = df[~((df['machine'] == 'Papper Machine 1') & (df['sub_area'] == 'WRAPPING & REWINDER'))]
+            detailed_areas = ['WRAPPING & REWINDER', 'POPE REEL & KUSTER']
+            non_detailed_df = df[~((df['machine'] == 'Papper Machine 1') & (df['sub_area'].isin(detailed_areas)))]
             
-            if not non_wrapping_df.empty:
-                sel = st.selectbox("Pilih ID untuk download", [""] + non_wrapping_df['id'].astype(str).tolist(), key="pdf_individual")
+            if not non_detailed_df.empty:
+                sel = st.selectbox("Pilih ID untuk download", [""] + non_detailed_df['id'].astype(str).tolist(), key="pdf_individual")
                 if sel:
                     rec = df[df['id'] == int(sel)].iloc[0].to_dict()
                     pdf_bytes = generate_pdf(rec, "Checklist Maintenance")
