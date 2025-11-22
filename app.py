@@ -1691,169 +1691,163 @@ def main():
             # Get historical data for autocomplete
             df_history = get_calibrations()
             
-            # Helper function to get unique history
-            def get_history_list(df, column, limit=20):
-                if df.empty:
-                    return []
-                values = df[column].dropna().unique().tolist()
-                # Filter empty strings and sort by most recent (reverse)
-                values = [str(x).strip() for x in values if x and str(x).strip()]
-                return sorted(list(set(values)))[:limit]
-            
             with st.form("calibration_form", clear_on_submit=True):
                 st.markdown("#### 📋 Basic Information")
                 col1, col2 = st.columns(2)
                 
-                # Get histories
-                doc_no_history = get_history_list(df_history, 'doc_no', 20)
-                name_history = get_history_list(df_history, 'name', 20)
-                temp_history = get_history_list(df_history, 'environmental_temp', 10)
-                humid_history = get_history_list(df_history, 'humidity', 10)
-                
-                # Use markdown for datalist suggestion (HTML5 datalist)
-                st.markdown(f"""
-                <style>
-                    .stTextInput input {{
-                        background-color: white;
-                    }}
-                </style>
-                """, unsafe_allow_html=True)
-                
-                # Doc No with autocomplete
-                doc_no = col1.text_input(
-                    "Doc. No", 
-                    placeholder="e.g., CAL-2025-001",
-                    help=f"💡 Previous: {', '.join(doc_no_history[:3])}" if doc_no_history else None
-                )
+                # Doc No with history
+                doc_no_history = df_history['doc_no'].dropna().unique().tolist() if not df_history.empty else []
+                doc_no_options = [""] + sorted([x for x in doc_no_history if x], reverse=True)[:10]
+                doc_no_select = col1.selectbox("Doc. No (Select or type new)", doc_no_options, key="doc_select")
+                if doc_no_select == "" or doc_no_select is None:
+                    doc_no = col1.text_input("Or type new Doc. No", placeholder="e.g., CAL-2025-001", key="doc_text")
+                else:
+                    doc_no = doc_no_select
                 
                 date = col1.date_input("Date", value=datetime.today())
                 
-                # Name with autocomplete
-                name = col1.text_input(
-                    "Name", 
-                    placeholder="Rotary Pump",
-                    help=f"💡 Previous: {', '.join(name_history[:3])}" if name_history else None
-                )
+                # Name with history
+                name_history = df_history['name'].dropna().unique().tolist() if not df_history.empty else []
+                name_options = [""] + sorted([x for x in name_history if x], reverse=True)[:10]
+                name_select = col1.selectbox("Name (Select or type new)", name_options, key="name_select")
+                if name_select == "" or name_select is None:
+                    name = col1.text_input("Or type new Name", placeholder="Rotary Pump", key="name_text")
+                else:
+                    name = name_select
                 
-                # Environmental Temp with autocomplete
-                environmental_temp = col2.text_input(
-                    "Environmental Temperature", 
-                    placeholder="e.g., +25 degC",
-                    help=f"💡 Previous: {', '.join(temp_history[:3])}" if temp_history else None
-                )
+                # Environmental Temp with history
+                temp_history = df_history['environmental_temp'].dropna().unique().tolist() if not df_history.empty else []
+                temp_options = [""] + sorted([x for x in temp_history if x], reverse=True)[:5]
+                temp_select = col2.selectbox("Environmental Temperature", temp_options, key="temp_select")
+                if temp_select == "" or temp_select is None:
+                    environmental_temp = col2.text_input("Or type new", placeholder="e.g., +25 degC", key="temp_text")
+                else:
+                    environmental_temp = temp_select
                 
-                # Humidity with autocomplete
-                humidity = col2.text_input(
-                    "Humidity", 
-                    placeholder="e.g., ~55%",
-                    help=f"💡 Previous: {', '.join(humid_history[:3])}" if humid_history else None
-                )
+                # Humidity with history
+                humid_history = df_history['humidity'].dropna().unique().tolist() if not df_history.empty else []
+                humid_options = [""] + sorted([x for x in humid_history if x], reverse=True)[:5]
+                humid_select = col2.selectbox("Humidity", humid_options, key="humid_select")
+                if humid_select == "" or humid_select is None:
+                    humidity = col2.text_input("Or type new", placeholder="e.g., ~55%", key="humid_text")
+                else:
+                    humidity = humid_select
                 
                 st.markdown("---")
                 st.markdown("#### ⚙️ Equipment Details")
                 
                 col1, col2 = st.columns(2)
                 
-                # Get equipment histories
-                tag_history = get_history_list(df_history, 'id_number', 20)
-                func_history = get_history_list(df_history, 'function_loc', 20)
-                plant_history = get_history_list(df_history, 'plant', 10)
-                loc_history = get_history_list(df_history, 'location', 20)
-                input_history = get_history_list(df_history, 'input', 10)
-                output_history = get_history_list(df_history, 'output', 10)
-                mfg_history = get_history_list(df_history, 'manufacturer', 20)
-                model_history = get_history_list(df_history, 'model', 20)
-                sn_history = get_history_list(df_history, 'serial_no', 20)
-                range_in_history = get_history_list(df_history, 'range_in', 10)
-                range_out_history = get_history_list(df_history, 'range_out', 10)
-                interval_history = get_history_list(df_history, 'interval_cal', 10)
+                # Tag ID with history
+                tag_history = df_history['id_number'].dropna().unique().tolist() if not df_history.empty else []
+                tag_options = [""] + sorted([x for x in tag_history if x], reverse=True)[:10]
+                tag_select = col1.selectbox("Tag ID (Select or type new)", tag_options, key="tag_select")
+                if tag_select == "" or tag_select is None:
+                    tag_id = col1.text_input("Or type new Tag ID", placeholder="e.g., PT/1", key="tag_text")
+                else:
+                    tag_id = tag_select
                 
-                # Tag ID with autocomplete
-                tag_id = col1.text_input(
-                    "Tag ID", 
-                    placeholder="e.g., PT/1",
-                    help=f"💡 Previous: {', '.join(tag_history[:3])}" if tag_history else None
-                )
+                # Function Loc with history
+                func_history = df_history['function_loc'].dropna().unique().tolist() if not df_history.empty else []
+                func_options = [""] + sorted([x for x in func_history if x], reverse=True)[:10]
+                func_select = col1.selectbox("Function Loc", func_options, key="func_select")
+                if func_select == "" or func_select is None:
+                    function_loc = col1.text_input("Or type new", placeholder="e.g., PM1", key="func_text")
+                else:
+                    function_loc = func_select
                 
-                # Function Loc with autocomplete
-                function_loc = col1.text_input(
-                    "Function Loc", 
-                    placeholder="e.g., PM1",
-                    help=f"💡 Previous: {', '.join(func_history[:3])}" if func_history else None
-                )
-                
-                # Plant with autocomplete
-                plant = col1.text_input(
-                    "Plant", 
-                    placeholder="e.g., 1",
-                    help=f"💡 Previous: {', '.join(plant_history[:3])}" if plant_history else None
-                )
+                # Plant with history
+                plant_history = df_history['plant'].dropna().unique().tolist() if not df_history.empty else []
+                plant_options = [""] + sorted([x for x in plant_history if x], reverse=True)[:5]
+                plant_select = col1.selectbox("Plant", plant_options, key="plant_select")
+                if plant_select == "" or plant_select is None:
+                    plant = col1.text_input("Or type new", placeholder="e.g., 1", key="plant_text")
+                else:
+                    plant = plant_select
                 
                 description = col1.text_area("Description", placeholder="Pressure outlet col DDK - pressure 70 (DUMP 107)")
                 device_name = col1.text_area("Device Name", placeholder="Pressure transmitter - pressure Hx (DUMP 107)")
                 
-                # Location with autocomplete
-                location = col1.text_input(
-                    "Location", 
-                    placeholder="e.g., Field Area A",
-                    help=f"💡 Previous: {', '.join(loc_history[:3])}" if loc_history else None
-                )
+                # Location with history
+                loc_history = df_history['location'].dropna().unique().tolist() if not df_history.empty else []
+                loc_options = [""] + sorted([x for x in loc_history if x], reverse=True)[:10]
+                loc_select = col1.selectbox("Location", loc_options, key="loc_select")
+                if loc_select == "" or loc_select is None:
+                    location = col1.text_input("Or type new", placeholder="e.g., Field Area A", key="loc_text")
+                else:
+                    location = loc_select
                 
-                # Input with autocomplete
-                input_type = col1.text_input(
-                    "Input", 
-                    placeholder="e.g., Pressure",
-                    help=f"💡 Previous: {', '.join(input_history[:3])}" if input_history else None
-                )
+                # Input with history
+                input_history = df_history['input'].dropna().unique().tolist() if not df_history.empty else []
+                input_options = [""] + sorted([x for x in input_history if x], reverse=True)[:5]
+                input_select = col1.selectbox("Input", input_options, key="input_select")
+                if input_select == "" or input_select is None:
+                    input_type = col1.text_input("Or type new", placeholder="e.g., Pressure", key="input_text")
+                else:
+                    input_type = input_select
                 
-                # Output with autocomplete
-                output_type = col1.text_input(
-                    "Output", 
-                    placeholder="e.g., 4-20 mA",
-                    help=f"💡 Previous: {', '.join(output_history[:3])}" if output_history else None
-                )
+                # Output with history
+                output_history = df_history['output'].dropna().unique().tolist() if not df_history.empty else []
+                output_options = [""] + sorted([x for x in output_history if x], reverse=True)[:5]
+                output_select = col1.selectbox("Output", output_options, key="output_select")
+                if output_select == "" or output_select is None:
+                    output_type = col1.text_input("Or type new", placeholder="e.g., 4-20 mA", key="output_text")
+                else:
+                    output_type = output_select
                 
-                # Manufacturer with autocomplete
-                manufacturer = col2.text_input(
-                    "Manufacturer", 
-                    placeholder="e.g., Keller",
-                    help=f"💡 Previous: {', '.join(mfg_history[:3])}" if mfg_history else None
-                )
+                # Manufacturer with history
+                mfg_history = df_history['manufacturer'].dropna().unique().tolist() if not df_history.empty else []
+                mfg_options = [""] + sorted([x for x in mfg_history if x], reverse=True)[:10]
+                mfg_select = col2.selectbox("Manufacturer", mfg_options, key="mfg_select")
+                if mfg_select == "" or mfg_select is None:
+                    manufacturer = col2.text_input("Or type new", placeholder="e.g., Keller", key="mfg_text")
+                else:
+                    manufacturer = mfg_select
                 
-                # Model with autocomplete
-                model = col2.text_input(
-                    "Model", 
-                    placeholder="e.g., -",
-                    help=f"💡 Previous: {', '.join(model_history[:3])}" if model_history else None
-                )
+                # Model with history
+                model_history = df_history['model'].dropna().unique().tolist() if not df_history.empty else []
+                model_options = [""] + sorted([x for x in model_history if x], reverse=True)[:10]
+                model_select = col2.selectbox("Model", model_options, key="model_select")
+                if model_select == "" or model_select is None:
+                    model = col2.text_input("Or type new", placeholder="e.g., -", key="model_text")
+                else:
+                    model = model_select
                 
-                # Serial No with autocomplete
-                serial_no = col2.text_input(
-                    "Serial No", 
-                    placeholder="e.g., -",
-                    help=f"💡 Previous: {', '.join(sn_history[:3])}" if sn_history else None
-                )
+                # Serial No with history
+                sn_history = df_history['serial_no'].dropna().unique().tolist() if not df_history.empty else []
+                sn_options = [""] + sorted([x for x in sn_history if x], reverse=True)[:10]
+                sn_select = col2.selectbox("Serial No", sn_options, key="sn_select")
+                if sn_select == "" or sn_select is None:
+                    serial_no = col2.text_input("Or type new", placeholder="e.g., -", key="sn_text")
+                else:
+                    serial_no = sn_select
                 
-                # Range In with autocomplete
-                range_in = col2.text_input(
-                    "Range In", 
-                    placeholder="e.g., 0 to 10 bar",
-                    help=f"💡 Previous: {', '.join(range_in_history[:3])}" if range_in_history else None
-                )
+                # Range In with history
+                range_in_history = df_history['range_in'].dropna().unique().tolist() if not df_history.empty else []
+                range_in_options = [""] + sorted([x for x in range_in_history if x], reverse=True)[:5]
+                range_in_select = col2.selectbox("Range In", range_in_options, key="range_in_select")
+                if range_in_select == "" or range_in_select is None:
+                    range_in = col2.text_input("Or type new", placeholder="e.g., 0 to 10 bar", key="range_in_text")
+                else:
+                    range_in = range_in_select
                 
-                # Range Out with autocomplete
-                range_out = col2.text_input(
-                    "Range Out", 
-                    placeholder="e.g., 4 to 20 mA",
-                    help=f"💡 Previous: {', '.join(range_out_history[:3])}" if range_out_history else None
-                )
+                # Range Out with history
+                range_out_history = df_history['range_out'].dropna().unique().tolist() if not df_history.empty else []
+                range_out_options = [""] + sorted([x for x in range_out_history if x], reverse=True)[:5]
+                range_out_select = col2.selectbox("Range Out", range_out_options, key="range_out_select")
+                if range_out_select == "" or range_out_select is None:
+                    range_out = col2.text_input("Or type new", placeholder="e.g., 4 to 20 mA", key="range_out_text")
+                else:
+                    range_out = range_out_select
                 
-                # Interval Cal with autocomplete
-                interval_cal = col2.text_input(
-                    "Interval Cal", 
-                    placeholder="e.g., 6 months",
-                    help=f"💡 Previous: {', '.join(interval_history[:3])}" if interval_history else None
-                )
+                # Interval Cal with history
+                interval_history = df_history['interval_cal'].dropna().unique().tolist() if not df_history.empty else []
+                interval_options = [""] + sorted([x for x in interval_history if x], reverse=True)[:5]
+                interval_select = col2.selectbox("Interval Cal", interval_options, key="interval_select")
+                if interval_select == "" or interval_select is None:
+                    interval_cal = col2.text_input("Or type new", placeholder="e.g., 6 months", key="interval_text")
+                else:
+                    interval_cal = interval_select
                 
                 st.markdown("---")
                 st.markdown("#### 🔧 Calibrators")
