@@ -137,8 +137,11 @@ def init_db():
     """)
 
     # Tabel calibrations
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='calibrations'")
+    if not c.fetchone():
+    # buat tabel calibrations karena belum ada
     c.execute("""
-    CREATE TABLE IF NOT EXISTS calibrations(
+    CREATE TABLE calibrations(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
         doc_no TEXT,
