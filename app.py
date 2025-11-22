@@ -1020,7 +1020,7 @@ def generate_calibration_pdf(record):
     
     pdf.cell(40, 6, "Input", border=1)
     pdf.cell(50, 6, str(record.get('input', '')), border=1, fill=True)
-    pdf.cell(40, 6, "Pressure Cal", border=1)
+    pdf.cell(40, 6, "Interval Cal", border=1)
     pdf.cell(60, 6, str(record.get('pressure_cal', '')), border=1, fill=True)
     pdf.ln()
     
@@ -1663,7 +1663,7 @@ def main():
                 serial_no = col2.text_input("Serial No", placeholder="e.g., -")
                 range_in = col2.text_input("Range In", placeholder="e.g., 0 to 10 bar")
                 range_out = col2.text_input("Range Out", placeholder="e.g., 4 to 20 mA")
-                pressure_cal = col2.text_input("Pressure Cal", placeholder="e.g., Min / Max")
+                pressure_cal = col2.text_input("Interval Cal", placeholder="e.g., Min / Max")
                 
                 st.markdown("---")
                 st.markdown("#### 🔧 Calibrators")
