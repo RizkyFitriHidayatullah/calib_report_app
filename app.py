@@ -1017,6 +1017,12 @@ def generate_calibration_pdf(record):
     pdf.cell(40, 6, "Range Out", border=1)
     pdf.cell(60, 6, str(record.get('range_out', '')), border=1, fill=True)
     pdf.ln()
+
+    pdf.cell(40, 6, "Location", border=1)
+    pdf.cell(50, 6, str(record.get('service_name', ''))[:30], border=1, fill=True)
+    pdf.cell(40, 6, "Range Out", border=1)
+    pdf.cell(60, 6, str(record.get('range_out', '')), border=1, fill=True)
+    pdf.ln()
     
     pdf.cell(40, 6, "Input", border=1)
     pdf.cell(50, 6, str(record.get('input', '')), border=1, fill=True)
