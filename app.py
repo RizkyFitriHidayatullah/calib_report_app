@@ -980,7 +980,7 @@ def generate_calibration_pdf(record):
     # Humidity
     pdf.cell(40, 6, "Humidity", border=1)
     pdf.cell(60, 6, str(record.get('humidity', '')), border=1, fill=True)
-    pdf.ln(5)
+    pdf.ln(10)
     
     # Name of Equipment Section
     pdf.set_font("Arial", "B", 10)
