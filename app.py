@@ -515,61 +515,75 @@ def get_checklists(user_id=None):
 def get_calibrations(user_id=None):
     conn = get_conn()
     c = conn.cursor()
+    
+    # First, check which columns exist
+    c.execute("PRAGMA table_info(calibration)")
+    existing_columns = [col[1] for col in c.fetchall()]
+    
+    # Build dynamic SELECT based on existing columns
+    base_cols = "c.id, c.user_id, c.doc_no, c.date, c.name, c.equipment_name, c.model, c.serial_no, " \
+                "c.environmental_temp, c.humidity, c.id_number, c.function_loc, c.plant, " \
+                "c.description, c.service_name, c.input, c.output, c.manufacturer, " \
+                "c.range_in, c.range_out, c.pressure_cal, c.calibrators, c.result_data, c.created_at"
+    
+    # Add optional columns with COALESCE if they exist
+    optional_cols = []
+    if 'approved_by' in existing_columns:
+        optional_cols.append("COALESCE(c.approved_by, '') as approved_by")
+    else:
+        optional_cols.append("'' as approved_by")
+    
+    if 'approved_at' in existing_columns:
+        optional_cols.append("COALESCE(c.approved_at, '') as approved_at")
+    else:
+        optional_cols.append("'' as approved_at")
+    
+    if 'approval_status' in existing_columns:
+        optional_cols.append("COALESCE(c.approval_status, 'Pending') as approval_status")
+    else:
+        optional_cols.append("'Pending' as approval_status")
+    
+    if 'signature' in existing_columns:
+        optional_cols.append("c.signature")
+    else:
+        optional_cols.append("NULL as signature")
+    
+    # New columns
+    new_col_names = ['reduce_error_value', 'reduce_error_span', 'status_as_found', 'status_as_left',
+                     'next_cal_date', 'calibration_node', 'calibration_by_name', 'calibration_by_date',
+                     'approved_by_name', 'approved_by_date']
+    
+    for col_name in new_col_names:
+        if col_name in existing_columns:
+            optional_cols.append(f"COALESCE(c.{col_name}, '') as {col_name}")
+        else:
+            optional_cols.append(f"'' as {col_name}")
+    
+    optional_cols.append("u.fullname as input_by")
+    
+    select_clause = base_cols + ", " + ", ".join(optional_cols)
+    
     if user_id:
-        c.execute("""
-            SELECT c.id, c.user_id, c.doc_no, c.date, c.name, c.equipment_name, c.model, c.serial_no,
-                   c.environmental_temp, c.humidity, c.id_number, c.function_loc, c.plant, 
-                   c.description, c.service_name, c.input, c.output, c.manufacturer,
-                   c.range_in, c.range_out, c.pressure_cal, c.calibrators, c.result_data,
-                   c.created_at,
-                   COALESCE(c.approved_by, '') as approved_by, 
-                   COALESCE(c.approved_at, '') as approved_at, 
-                   COALESCE(c.approval_status, 'Pending') as approval_status,
-                   c.signature,
-                   COALESCE(c.reduce_error_value, '') as reduce_error_value,
-                   COALESCE(c.reduce_error_span, '') as reduce_error_span,
-                   COALESCE(c.status_as_found, '') as status_as_found,
-                   COALESCE(c.status_as_left, '') as status_as_left,
-                   COALESCE(c.next_cal_date, '') as next_cal_date,
-                   COALESCE(c.calibration_node, '') as calibration_node,
-                   COALESCE(c.calibration_by_name, '') as calibration_by_name,
-                   COALESCE(c.calibration_by_date, '') as calibration_by_date,
-                   COALESCE(c.approved_by_name, '') as approved_by_name,
-                   COALESCE(c.approved_by_date, '') as approved_by_date,
-                   u.fullname as input_by
+        query = f"""
+            SELECT {select_clause}
             FROM calibration c 
             LEFT JOIN users u ON c.user_id = u.id 
             WHERE c.user_id=? 
             ORDER BY c.date DESC, c.id DESC
-        """, (user_id,))
+        """
+        c.execute(query, (user_id,))
     else:
-        c.execute("""
-            SELECT c.id, c.user_id, c.doc_no, c.date, c.name, c.equipment_name, c.model, c.serial_no,
-                   c.environmental_temp, c.humidity, c.id_number, c.function_loc, c.plant,
-                   c.description, c.service_name, c.input, c.output, c.manufacturer,
-                   c.range_in, c.range_out, c.pressure_cal, c.calibrators, c.result_data,
-                   c.created_at,
-                   COALESCE(c.approved_by, '') as approved_by, 
-                   COALESCE(c.approved_at, '') as approved_at, 
-                   COALESCE(c.approval_status, 'Pending') as approval_status,
-                   c.signature,
-                   COALESCE(c.reduce_error_value, '') as reduce_error_value,
-                   COALESCE(c.reduce_error_span, '') as reduce_error_span,
-                   COALESCE(c.status_as_found, '') as status_as_found,
-                   COALESCE(c.status_as_left, '') as status_as_left,
-                   COALESCE(c.next_cal_date, '') as next_cal_date,
-                   COALESCE(c.calibration_node, '') as calibration_node,
-                   COALESCE(c.calibration_by_name, '') as calibration_by_name,
-                   COALESCE(c.calibration_by_date, '') as calibration_by_date,
-                   COALESCE(c.approved_by_name, '') as approved_by_name,
-                   COALESCE(c.approved_by_date, '') as approved_by_date,
-                   u.fullname as input_by
+        query = f"""
+            SELECT {select_clause}
             FROM calibration c 
             LEFT JOIN users u ON c.user_id = u.id 
             ORDER BY c.date DESC, c.id DESC
-        """)
+        """
+        c.execute(query)
+    
     rows = c.fetchall()
     conn.close()
+    
     cols = ["id", "user_id", "doc_no", "date", "name", "equipment_name", "model", "serial_no",
             "environmental_temp", "humidity", "id_number", "function_loc", "plant",
             "description", "service_name", "input", "output", "manufacturer",
@@ -578,6 +592,7 @@ def get_calibrations(user_id=None):
             "reduce_error_value", "reduce_error_span", "status_as_found", "status_as_left",
             "next_cal_date", "calibration_node", "calibration_by_name", "calibration_by_date",
             "approved_by_name", "approved_by_date", "input_by"]
+    
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 def approve_checklist_batch(checklist_ids, manager_name, signature_data):
@@ -955,32 +970,32 @@ def generate_calibration_pdf(record):
     pdf.set_fill_color(173, 216, 230)  # Light blue
     
     # Doc No
-    pdf.cell(42, 6, "Doc. No", border=1)
+    pdf.cell(40, 6, "Doc. No", border=1)
     pdf.cell(60, 6, str(record.get('doc_no', '')), border=1, fill=True)
     pdf.cell(40, 6, "", border=0)
     pdf.cell(50, 6, "", border=0)
     pdf.ln()
     
     # Date
-    pdf.cell(42, 6, "Date", border=1)
+    pdf.cell(40, 6, "Date", border=1)
     pdf.cell(60, 6, str(record.get('date', '')), border=1, fill=True)
-   
+    pdf.cell(40, 6, "Kolej Bekasi-cuwang", border=1)
     pdf.ln()
     
     # Name
-    pdf.cell(42, 6, "Name", border=1)
+    pdf.cell(40, 6, "Name", border=1)
     pdf.cell(60, 6, str(record.get('name', '')), border=1, fill=True)
     pdf.ln()
     
     # Environmental Temp
-    pdf.cell(42, 6, "Environmental Temperature", border=1)
+    pdf.cell(40, 6, "Environmental Temperature", border=1)
     pdf.cell(60, 6, str(record.get('environmental_temp', '')), border=1, fill=True)
     pdf.ln()
     
     # Humidity
-    pdf.cell(42, 6, "Humidity", border=1)
+    pdf.cell(40, 6, "Humidity", border=1)
     pdf.cell(60, 6, str(record.get('humidity', '')), border=1, fill=True)
-    pdf.ln(8)
+    pdf.ln(5)
     
     # Name of Equipment Section
     pdf.set_font("Arial", "B", 10)
@@ -988,7 +1003,7 @@ def generate_calibration_pdf(record):
     pdf.set_font("Arial", "", 9)
     
     # Equipment details in table
-    pdf.cell(40, 6, "Tag ID", border=1)
+    pdf.cell(40, 6, "Id PT/A21A", border=1)
     pdf.cell(50, 6, str(record.get('id_number', '')), border=1, fill=True)
     pdf.cell(40, 6, "Manufacturer", border=1)
     pdf.cell(60, 6, str(record.get('manufacturer', '')), border=1, fill=True)
@@ -1012,13 +1027,7 @@ def generate_calibration_pdf(record):
     pdf.cell(60, 6, str(record.get('range_in', '')), border=1, fill=True)
     pdf.ln()
     
-    pdf.cell(40, 6, "Device Name", border=1)
-    pdf.cell(50, 6, str(record.get('service_name', ''))[:30], border=1, fill=True)
-    pdf.cell(40, 6, "Range Out", border=1)
-    pdf.cell(60, 6, str(record.get('range_out', '')), border=1, fill=True)
-    pdf.ln()
-
-    pdf.cell(40, 6, "Location", border=1)
+    pdf.cell(40, 6, "Service Name", border=1)
     pdf.cell(50, 6, str(record.get('service_name', ''))[:30], border=1, fill=True)
     pdf.cell(40, 6, "Range Out", border=1)
     pdf.cell(60, 6, str(record.get('range_out', '')), border=1, fill=True)
@@ -1026,13 +1035,13 @@ def generate_calibration_pdf(record):
     
     pdf.cell(40, 6, "Input", border=1)
     pdf.cell(50, 6, str(record.get('input', '')), border=1, fill=True)
-    pdf.cell(40, 6, "Interval Cal", border=1)
+    pdf.cell(40, 6, "Pressure Cal", border=1)
     pdf.cell(60, 6, str(record.get('pressure_cal', '')), border=1, fill=True)
     pdf.ln()
     
     pdf.cell(40, 6, "Output", border=1)
     pdf.cell(50, 6, str(record.get('output', '')), border=1, fill=True)
-    pdf.ln(9)
+    pdf.ln(5)
     
     # Calibrators Section
     pdf.set_font("Arial", "B", 10)
@@ -1117,8 +1126,8 @@ def generate_calibration_pdf(record):
     pdf.set_font("Arial", "", 9)
     pdf.set_fill_color(173, 216, 230)
     
-    # Reject if Error
-    pdf.cell(40, 6, "Reject if Error >", border=1)
+    # Reduce if Error
+    pdf.cell(40, 6, "Reduce if Error >", border=1)
     pdf.cell(30, 6, str(record.get('reduce_error_value', '1.00')), border=1, fill=True)
     pdf.cell(30, 6, str(record.get('reduce_error_span', '% of Span')), border=1, fill=True)
     pdf.ln()
@@ -1138,7 +1147,7 @@ def generate_calibration_pdf(record):
     # Calibration Node
     pdf.cell(40, 6, "Calibration Node", border=1)
     pdf.cell(60, 6, str(record.get('calibration_node', '')), border=1, fill=True)
-    pdf.ln(9)
+    pdf.ln(5)
     
     # Calibration By & Approved By Section
     pdf.set_font("Arial", "B", 10)
@@ -1660,7 +1669,7 @@ def main():
                 function_loc = col1.text_input("Function Loc", placeholder="e.g., PM1")
                 plant = col1.text_input("Plant", placeholder="e.g., 1")
                 description = col1.text_area("Description", placeholder="Pressure outlet col DDK - pressure 70 (DUMP 107)")
-                service_name = col1.text_area("Device Name", placeholder="Pressure transmitter - pressure Hx (DUMP 107)")
+                service_name = col1.text_area("Service Name", placeholder="Pressure transmitter - pressure Hx (DUMP 107)")
                 input_type = col1.text_input("Input", placeholder="e.g., Pressure")
                 output_type = col1.text_input("Output", placeholder="e.g., 4-20 mA")
                 
@@ -1669,7 +1678,7 @@ def main():
                 serial_no = col2.text_input("Serial No", placeholder="e.g., -")
                 range_in = col2.text_input("Range In", placeholder="e.g., 0 to 10 bar")
                 range_out = col2.text_input("Range Out", placeholder="e.g., 4 to 20 mA")
-                pressure_cal = col2.text_input("Interval Cal", placeholder="e.g., Min / Max")
+                pressure_cal = col2.text_input("Pressure Cal", placeholder="e.g., Min / Max")
                 
                 st.markdown("---")
                 st.markdown("#### 🔧 Calibrators")
@@ -1754,7 +1763,7 @@ def main():
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    reduce_error_value = st.text_input("Reject if Error >", placeholder="e.g., 1.00", value="1.00")
+                    reduce_error_value = st.text_input("Reduce if Error >", placeholder="e.g., 1.00", value="1.00")
                     status_as_found = st.selectbox("Status: As Found", ["", "Pass", "Fail", "Adjust"])
                 
                 with col2:
