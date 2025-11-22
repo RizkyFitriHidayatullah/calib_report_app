@@ -1012,7 +1012,7 @@ def generate_calibration_pdf(record):
     pdf.cell(60, 6, str(record.get('range_in', '')), border=1, fill=True)
     pdf.ln()
     
-    pdf.cell(40, 6, "Service Name", border=1)
+    pdf.cell(40, 6, "Device Name", border=1)
     pdf.cell(50, 6, str(record.get('service_name', ''))[:30], border=1, fill=True)
     pdf.cell(40, 6, "Range Out", border=1)
     pdf.cell(60, 6, str(record.get('range_out', '')), border=1, fill=True)
@@ -1654,7 +1654,7 @@ def main():
                 function_loc = col1.text_input("Function Loc", placeholder="e.g., PM1")
                 plant = col1.text_input("Plant", placeholder="e.g., 1")
                 description = col1.text_area("Description", placeholder="Pressure outlet col DDK - pressure 70 (DUMP 107)")
-                service_name = col1.text_area("Service Name", placeholder="Pressure transmitter - pressure Hx (DUMP 107)")
+                service_name = col1.text_area("Device Name", placeholder="Pressure transmitter - pressure Hx (DUMP 107)")
                 input_type = col1.text_input("Input", placeholder="e.g., Pressure")
                 output_type = col1.text_input("Output", placeholder="e.g., 4-20 mA")
                 
