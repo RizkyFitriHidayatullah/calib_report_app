@@ -135,39 +135,110 @@ def init_db():
         details TEXT
     )""")
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS calibration(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        doc_no TEXT,
-        date TEXT,
-        name TEXT,
-        environmental_temp TEXT,
-        humidity TEXT,
-        equipment_name TEXT,
-        id_number TEXT,
-        function_loc TEXT,
-        plant TEXT,
-        description TEXT,
-        service_name TEXT,
-        input TEXT,
-        output TEXT,
-        manufacturer TEXT,
-        model TEXT,
-        serial_no TEXT,
-        range_in TEXT,
-        range_out TEXT,
-        pressure_cal TEXT,
-        calibrators TEXT,
-        result_data TEXT,
-        created_at TEXT,
-        approved_by TEXT,
-        approved_at TEXT,
-        approval_status TEXT DEFAULT 'Pending',
-        signature BLOB
-    )""")
+    # Check if old calibration table exists
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='calibration'")
+    table_exists = c.fetchone()
+    
+    if table_exists:
+        # Check if old structure (get column names)
+        c.execute("PRAGMA table_info(calibration)")
+        columns = [col[1] for col in c.fetchall()]
+        
+        # If old structure detected (doesn't have doc_no), migrate
+        if 'doc_no' not in columns:
+            st.warning("🔄 Migrasi database calibration ke struktur baru...")
+            
+            # Rename old table
+            c.execute("ALTER TABLE calibration RENAME TO calibration_old")
+            
+            # Create new table
+            c.execute("""
+            CREATE TABLE calibration(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                doc_no TEXT,
+                date TEXT,
+                name TEXT,
+                environmental_temp TEXT,
+                humidity TEXT,
+                equipment_name TEXT,
+                id_number TEXT,
+                function_loc TEXT,
+                plant TEXT,
+                description TEXT,
+                service_name TEXT,
+                input TEXT,
+                output TEXT,
+                manufacturer TEXT,
+                model TEXT,
+                serial_no TEXT,
+                range_in TEXT,
+                range_out TEXT,
+                pressure_cal TEXT,
+                calibrators TEXT,
+                result_data TEXT,
+                created_at TEXT,
+                approved_by TEXT,
+                approved_at TEXT,
+                approval_status TEXT DEFAULT 'Pending',
+                signature BLOB
+            )""")
+            
+            # Migrate old data if any
+            try:
+                c.execute("""
+                    INSERT INTO calibration (
+                        id, user_id, date, equipment_name, created_at, 
+                        approved_by, approved_at, approval_status, signature
+                    )
+                    SELECT 
+                        id, user_id, date, 
+                        COALESCE(instrument, 'Unknown'), 
+                        created_at,
+                        approved_by, approved_at, approval_status, signature
+                    FROM calibration_old
+                """)
+                st.success("✅ Data lama berhasil dimigrasikan!")
+            except:
+                pass
+            
+            # Drop old table
+            c.execute("DROP TABLE IF EXISTS calibration_old")
+    else:
+        # Create new table from scratch
+        c.execute("""
+        CREATE TABLE calibration(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            doc_no TEXT,
+            date TEXT,
+            name TEXT,
+            environmental_temp TEXT,
+            humidity TEXT,
+            equipment_name TEXT,
+            id_number TEXT,
+            function_loc TEXT,
+            plant TEXT,
+            description TEXT,
+            service_name TEXT,
+            input TEXT,
+            output TEXT,
+            manufacturer TEXT,
+            model TEXT,
+            serial_no TEXT,
+            range_in TEXT,
+            range_out TEXT,
+            pressure_cal TEXT,
+            calibrators TEXT,
+            result_data TEXT,
+            created_at TEXT,
+            approved_by TEXT,
+            approved_at TEXT,
+            approval_status TEXT DEFAULT 'Pending',
+            signature BLOB
+        )""")
 
-    # Tambahkan kolom baru jika belum ada
+    # Tambahkan kolom baru jika belum ada untuk users dan checklist
     try:
         c.execute("ALTER TABLE users ADD COLUMN signature BLOB")
     except:
