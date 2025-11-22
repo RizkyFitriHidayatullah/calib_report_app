@@ -377,11 +377,19 @@ def save_calibration(user_id, calibration_data):
         
         # Add missing columns if they don't exist
         try:
-            c.execute("ALTER TABLE calibration ADD COLUMN reduce_error_value TEXT")
+            c.execute("ALTER TABLE calibration ADD COLUMN location TEXT")
         except:
             pass
         try:
-            c.execute("ALTER TABLE calibration ADD COLUMN reduce_error_span TEXT")
+            c.execute("ALTER TABLE calibration ADD COLUMN interval_cal TEXT")
+        except:
+            pass
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN reject_error_value TEXT")
+        except:
+            pass
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN reject_error_span TEXT")
         except:
             pass
         try:
@@ -423,14 +431,14 @@ def save_calibration(user_id, calibration_data):
         c.execute("""
             INSERT INTO calibration (
                 user_id, doc_no, date, name, environmental_temp, humidity,
-                equipment_name, id_number, function_loc, plant, description, service_name,
+                equipment_name, id_number, function_loc, plant, description, service_name, location,
                 input, output, manufacturer, model, serial_no, range_in, range_out,
-                pressure_cal, calibrators, result_data, created_at,
-                reduce_error_value, reduce_error_span, status_as_found, status_as_left,
+                interval_cal, calibrators, result_data, created_at,
+                reject_error_value, reject_error_span, status_as_found, status_as_left,
                 next_cal_date, calibration_node, calibration_by_name, calibration_by_date,
                 approved_by_name, approved_by_date
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             user_id,
             calibration_data.get('doc_no'),
@@ -444,6 +452,7 @@ def save_calibration(user_id, calibration_data):
             calibration_data.get('plant'),
             calibration_data.get('description'),
             calibration_data.get('service_name'),
+            calibration_data.get('location'),
             calibration_data.get('input'),
             calibration_data.get('output'),
             calibration_data.get('manufacturer'),
@@ -451,12 +460,12 @@ def save_calibration(user_id, calibration_data):
             calibration_data.get('serial_no'),
             calibration_data.get('range_in'),
             calibration_data.get('range_out'),
-            calibration_data.get('pressure_cal'),
+            calibration_data.get('interval_cal'),
             calibration_data.get('calibrators'),
             json.dumps(calibration_data.get('result_data', [])),
             now.isoformat(),
-            calibration_data.get('reduce_error_value'),
-            calibration_data.get('reduce_error_span'),
+            calibration_data.get('reject_error_value'),
+            calibration_data.get('reject_error_span'),
             calibration_data.get('status_as_found'),
             calibration_data.get('status_as_left'),
             calibration_data.get('next_cal_date'),
@@ -523,11 +532,12 @@ def get_calibrations(user_id=None):
     # Build dynamic SELECT based on existing columns
     base_cols = "c.id, c.user_id, c.doc_no, c.date, c.name, c.equipment_name, c.model, c.serial_no, " \
                 "c.environmental_temp, c.humidity, c.id_number, c.function_loc, c.plant, " \
-                "c.description, c.service_name, c.input, c.output, c.manufacturer, " \
-                "c.range_in, c.range_out, c.pressure_cal, c.calibrators, c.result_data, c.created_at"
+                "c.description, c.service_name, c.location, c.input, c.output, c.manufacturer, " \
+                "c.range_in, c.range_out, c.interval_cal, c.calibrators, c.result_data, c.created_at"
     
     # Add optional columns with COALESCE if they exist
     optional_cols = []
+    
     if 'approved_by' in existing_columns:
         optional_cols.append("COALESCE(c.approved_by, '') as approved_by")
     else:
@@ -549,7 +559,7 @@ def get_calibrations(user_id=None):
         optional_cols.append("NULL as signature")
     
     # New columns
-    new_col_names = ['reduce_error_value', 'reduce_error_span', 'status_as_found', 'status_as_left',
+    new_col_names = ['reject_error_value', 'reject_error_span', 'status_as_found', 'status_as_left',
                      'next_cal_date', 'calibration_node', 'calibration_by_name', 'calibration_by_date',
                      'approved_by_name', 'approved_by_date']
     
@@ -586,10 +596,10 @@ def get_calibrations(user_id=None):
     
     cols = ["id", "user_id", "doc_no", "date", "name", "equipment_name", "model", "serial_no",
             "environmental_temp", "humidity", "id_number", "function_loc", "plant",
-            "description", "service_name", "input", "output", "manufacturer",
-            "range_in", "range_out", "pressure_cal", "calibrators", "result_data",
+            "description", "service_name", "location", "input", "output", "manufacturer",
+            "range_in", "range_out", "interval_cal", "calibrators", "result_data",
             "created_at", "approved_by", "approved_at", "approval_status", "signature",
-            "reduce_error_value", "reduce_error_span", "status_as_found", "status_as_left",
+            "reject_error_value", "reject_error_span", "status_as_found", "status_as_left",
             "next_cal_date", "calibration_node", "calibration_by_name", "calibration_by_date",
             "approved_by_name", "approved_by_date", "input_by"]
     
@@ -972,14 +982,11 @@ def generate_calibration_pdf(record):
     # Doc No
     pdf.cell(40, 6, "Doc. No", border=1)
     pdf.cell(60, 6, str(record.get('doc_no', '')), border=1, fill=True)
-    pdf.cell(40, 6, "", border=0)
-    pdf.cell(50, 6, "", border=0)
     pdf.ln()
     
     # Date
     pdf.cell(40, 6, "Date", border=1)
     pdf.cell(60, 6, str(record.get('date', '')), border=1, fill=True)
-    pdf.cell(40, 6, "Kolej Bekasi-cuwang", border=1)
     pdf.ln()
     
     # Name
@@ -1003,7 +1010,7 @@ def generate_calibration_pdf(record):
     pdf.set_font("Arial", "", 9)
     
     # Equipment details in table
-    pdf.cell(40, 6, "Id PT/A21A", border=1)
+    pdf.cell(40, 6, "Tag ID", border=1)
     pdf.cell(50, 6, str(record.get('id_number', '')), border=1, fill=True)
     pdf.cell(40, 6, "Manufacturer", border=1)
     pdf.cell(60, 6, str(record.get('manufacturer', '')), border=1, fill=True)
@@ -1027,16 +1034,20 @@ def generate_calibration_pdf(record):
     pdf.cell(60, 6, str(record.get('range_in', '')), border=1, fill=True)
     pdf.ln()
     
-    pdf.cell(40, 6, "Service Name", border=1)
+    pdf.cell(40, 6, "Device Name", border=1)
     pdf.cell(50, 6, str(record.get('service_name', ''))[:30], border=1, fill=True)
     pdf.cell(40, 6, "Range Out", border=1)
     pdf.cell(60, 6, str(record.get('range_out', '')), border=1, fill=True)
     pdf.ln()
     
+    pdf.cell(40, 6, "Location", border=1)
+    pdf.cell(50, 6, str(record.get('location', '')), border=1, fill=True)
+    pdf.cell(40, 6, "Interval Cal", border=1)
+    pdf.cell(60, 6, str(record.get('interval_cal', '')), border=1, fill=True)
+    pdf.ln()
+    
     pdf.cell(40, 6, "Input", border=1)
     pdf.cell(50, 6, str(record.get('input', '')), border=1, fill=True)
-    pdf.cell(40, 6, "Pressure Cal", border=1)
-    pdf.cell(60, 6, str(record.get('pressure_cal', '')), border=1, fill=True)
     pdf.ln()
     
     pdf.cell(40, 6, "Output", border=1)
@@ -1126,10 +1137,10 @@ def generate_calibration_pdf(record):
     pdf.set_font("Arial", "", 9)
     pdf.set_fill_color(173, 216, 230)
     
-    # Reduce if Error
-    pdf.cell(40, 6, "Reduce if Error >", border=1)
-    pdf.cell(30, 6, str(record.get('reduce_error_value', '1.00')), border=1, fill=True)
-    pdf.cell(30, 6, str(record.get('reduce_error_span', '% of Span')), border=1, fill=True)
+    # Reject if Error
+    pdf.cell(40, 6, "Reject if Error >", border=1)
+    pdf.cell(30, 6, str(record.get('reject_error_value', '1.00')), border=1, fill=True)
+    pdf.cell(30, 6, str(record.get('reject_error_span', '% of Span')), border=1, fill=True)
     pdf.ln()
     
     # Status As Found / As Left
@@ -1665,11 +1676,12 @@ def main():
                 
                 col1, col2 = st.columns(2)
                 
-                id_number = col1.text_input("Id (PT/A21A)", placeholder="e.g., PT/1")
+                tag_id = col1.text_input("Tag ID", placeholder="e.g., PT/1")
                 function_loc = col1.text_input("Function Loc", placeholder="e.g., PM1")
                 plant = col1.text_input("Plant", placeholder="e.g., 1")
                 description = col1.text_area("Description", placeholder="Pressure outlet col DDK - pressure 70 (DUMP 107)")
-                service_name = col1.text_area("Service Name", placeholder="Pressure transmitter - pressure Hx (DUMP 107)")
+                device_name = col1.text_area("Device Name", placeholder="Pressure transmitter - pressure Hx (DUMP 107)")
+                location = col1.text_input("Location", placeholder="e.g., Field Area A")
                 input_type = col1.text_input("Input", placeholder="e.g., Pressure")
                 output_type = col1.text_input("Output", placeholder="e.g., 4-20 mA")
                 
@@ -1678,7 +1690,7 @@ def main():
                 serial_no = col2.text_input("Serial No", placeholder="e.g., -")
                 range_in = col2.text_input("Range In", placeholder="e.g., 0 to 10 bar")
                 range_out = col2.text_input("Range Out", placeholder="e.g., 4 to 20 mA")
-                pressure_cal = col2.text_input("Pressure Cal", placeholder="e.g., Min / Max")
+                interval_cal = col2.text_input("Interval Cal", placeholder="e.g., 6 months")
                 
                 st.markdown("---")
                 st.markdown("#### 🔧 Calibrators")
@@ -1763,11 +1775,11 @@ def main():
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    reduce_error_value = st.text_input("Reduce if Error >", placeholder="e.g., 1.00", value="1.00")
+                    reject_error_value = st.text_input("Reject if Error >", placeholder="e.g., 1.00", value="1.00")
                     status_as_found = st.selectbox("Status: As Found", ["", "Pass", "Fail", "Adjust"])
                 
                 with col2:
-                    reduce_error_span = st.text_input("% of Span", placeholder="e.g., % of Span")
+                    reject_error_span = st.text_input("% of Span", placeholder="e.g., % of Span")
                     status_as_left = st.selectbox("Status: As Left", ["", "Pass", "Fail", "Adjust"])
                 
                 with col3:
@@ -1798,11 +1810,12 @@ def main():
                         'environmental_temp': environmental_temp,
                         'humidity': humidity,
                         'equipment_name': name,
-                        'id_number': id_number,
+                        'id_number': tag_id,
                         'function_loc': function_loc,
                         'plant': plant,
                         'description': description,
-                        'service_name': service_name,
+                        'service_name': device_name,
+                        'location': location,
                         'input': input_type,
                         'output': output_type,
                         'manufacturer': manufacturer,
@@ -1810,11 +1823,11 @@ def main():
                         'serial_no': serial_no,
                         'range_in': range_in,
                         'range_out': range_out,
-                        'pressure_cal': pressure_cal,
+                        'interval_cal': interval_cal,
                         'calibrators': calibrators,
                         'result_data': result_data,
-                        'reduce_error_value': reduce_error_value,
-                        'reduce_error_span': reduce_error_span,
+                        'reject_error_value': reject_error_value,
+                        'reject_error_span': reject_error_span,
                         'status_as_found': status_as_found,
                         'status_as_left': status_as_left,
                         'next_cal_date': next_cal_date.strftime("%Y-%m-%d") if next_cal_date else '',
