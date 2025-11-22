@@ -988,7 +988,7 @@ def generate_calibration_pdf(record):
     pdf.set_font("Arial", "", 9)
     
     # Equipment details in table
-    pdf.cell(40, 6, "Id PT/A21A", border=1)
+    pdf.cell(40, 6, "Tag ID", border=1)
     pdf.cell(50, 6, str(record.get('id_number', '')), border=1, fill=True)
     pdf.cell(40, 6, "Manufacturer", border=1)
     pdf.cell(60, 6, str(record.get('manufacturer', '')), border=1, fill=True)
