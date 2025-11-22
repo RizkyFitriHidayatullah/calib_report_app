@@ -96,11 +96,13 @@ def inject_bootstrap():
 # ---------------------------
 # DB FUNCTIONS
 # ---------------------------
+def get_conn():
+    return sqlite3.connect(DB_PATH, check_same_thread=False)
+
 def init_db():
-    conn = sqlite3.connect("maintenance_app.db")
+    conn = get_conn()
     c = conn.cursor()
 
-    # Tabel users
     c.execute("""
     CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,10 +112,8 @@ def init_db():
         role TEXT,
         created_at TEXT,
         signature BLOB
-    )
-    """)
+    )""")
 
-    # Tabel checklist
     c.execute("""
     CREATE TABLE IF NOT EXISTS checklist(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,59 +133,7 @@ def init_db():
         approval_status TEXT DEFAULT 'Pending',
         signature BLOB,
         details TEXT
-    )
-    """)
-
-    # Tabel calibrations
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='calibrations'")
-    if not c.fetchone():
-    # buat tabel calibrations karena belum ada
-    c.execute("""
-    CREATE TABLE calibrations(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        doc_no TEXT,
-        date TEXT,
-        name TEXT,
-        equipment_name TEXT,
-        model TEXT,
-        serial_no TEXT,
-        environmental_temp TEXT,
-        humidity TEXT,
-        id_number TEXT,
-        function_loc TEXT,
-        plant TEXT,
-        description TEXT,
-        service_name TEXT,
-        input TEXT,
-        output TEXT,
-        manufacturer TEXT,
-        range_in TEXT,
-        range_out TEXT,
-        pressure_cal TEXT,
-        calibrators TEXT,
-        result_data TEXT,
-        created_at TEXT,
-        approved_by TEXT,
-        approved_at TEXT,
-        approval_status TEXT DEFAULT 'Pending',
-        signature BLOB,
-        reduce_error_value TEXT,
-        reduce_error_span TEXT,
-        status_as_found TEXT,
-        status_as_left TEXT,
-        next_cal_date TEXT,
-        calibration_node TEXT,
-        calibration_by_name TEXT,
-        calibration_by_date TEXT,
-        approved_by_name TEXT,
-        approved_by_date TEXT
-    )
-    """)
-
-    conn.commit()
-    conn.close()
-
+    )""")
 
     # Check if old calibration table exists
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='calibration'")
@@ -616,7 +564,7 @@ def get_calibrations(user_id=None):
                    COALESCE(c.approved_by_name, '') as approved_by_name,
                    COALESCE(c.approved_by_date, '') as approved_by_date,
                    u.fullname as input_by
-            FROM calibrations c 
+            FROM calibration c 
             LEFT JOIN users u ON c.user_id = u.id 
             ORDER BY c.date DESC, c.id DESC
         """)
