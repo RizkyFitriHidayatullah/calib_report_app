@@ -100,7 +100,7 @@ def get_conn():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 
 def init_db():
-    conn = get_conn()
+    conn = sqlite3.connect("maintenance_app.db")
     c = conn.cursor()
 
     c.execute("""
