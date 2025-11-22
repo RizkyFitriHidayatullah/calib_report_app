@@ -1898,7 +1898,7 @@ def main():
                     
                     with col_no:
                         if idx == 0:
-                            st.markdown("**Nominal Output (mA)**")
+                            st.markdown("**Nominal Output**")
                         st.text_input(f"no_{idx}", value=row_data.get('nominal_output', ''), label_visibility="collapsed", key=f"nom_out_{idx}")
                     
                     with col_af:
