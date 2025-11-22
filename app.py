@@ -1893,7 +1893,7 @@ def main():
                     
                     with col_nb:
                         if idx == 0:
-                            st.markdown("**Nominal Bar**")
+                            st.markdown("**Nominal Input**")
                         st.text_input(f"nb_{idx}", value=row_data.get('nominal_bar', ''), label_visibility="collapsed", key=f"nom_bar_{idx}")
                     
                     with col_no:
