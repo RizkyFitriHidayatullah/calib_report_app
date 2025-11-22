@@ -529,57 +529,83 @@ def get_calibrations(user_id=None):
     c.execute("PRAGMA table_info(calibration)")
     existing_columns = [col[1] for col in c.fetchall()]
     
-    # Build dynamic SELECT based on existing columns
-    base_cols = "c.id, c.user_id, c.doc_no, c.date, c.name, c.equipment_name, c.model, c.serial_no, " \
-                "c.environmental_temp, c.humidity, c.id_number, c.function_loc, c.plant, " \
-                "c.description, c.service_name, c.location, c.input, c.output, c.manufacturer, " \
-                "c.range_in, c.range_out, c.interval_cal, c.calibrators, c.result_data, c.created_at"
+    # Build SELECT clause dynamically based on existing columns
+    select_parts = []
     
-    # Add optional columns with COALESCE if they exist
-    optional_cols = []
-    
-    if 'approved_by' in existing_columns:
-        optional_cols.append("COALESCE(c.approved_by, '') as approved_by")
-    else:
-        optional_cols.append("'' as approved_by")
-    
-    if 'approved_at' in existing_columns:
-        optional_cols.append("COALESCE(c.approved_at, '') as approved_at")
-    else:
-        optional_cols.append("'' as approved_at")
-    
-    if 'approval_status' in existing_columns:
-        optional_cols.append("COALESCE(c.approval_status, 'Pending') as approval_status")
-    else:
-        optional_cols.append("'Pending' as approval_status")
-    
-    if 'signature' in existing_columns:
-        optional_cols.append("c.signature")
-    else:
-        optional_cols.append("NULL as signature")
-    
-    # New columns
-    new_col_names = ['reject_error_value', 'reject_error_span', 'status_as_found', 'status_as_left',
-                     'next_cal_date', 'calibration_node', 'calibration_by_name', 'calibration_by_date',
-                     'approved_by_name', 'approved_by_date']
-    
-    for col_name in new_col_names:
-        if col_name in existing_columns:
-            optional_cols.append(f"COALESCE(c.{col_name}, '') as {col_name}")
+    # Always available base columns
+    base_required = ['id', 'user_id', 'created_at']
+    for col in base_required:
+        if col in existing_columns:
+            select_parts.append(f"c.{col}")
         else:
-            optional_cols.append(f"'' as {col_name}")
+            select_parts.append(f"NULL as {col}")
     
-    optional_cols.append("u.fullname as input_by")
+    # Optional columns with fallback
+    optional_columns = {
+        'doc_no': '',
+        'date': '',
+        'name': '',
+        'equipment_name': '',
+        'model': '',
+        'serial_no': '',
+        'environmental_temp': '',
+        'humidity': '',
+        'id_number': '',
+        'function_loc': '',
+        'plant': '',
+        'description': '',
+        'service_name': '',
+        'location': '',
+        'input': '',
+        'output': '',
+        'manufacturer': '',
+        'range_in': '',
+        'range_out': '',
+        'interval_cal': '',
+        'calibrators': '',
+        'result_data': '[]',
+        'approved_by': '',
+        'approved_at': '',
+        'approval_status': 'Pending',
+        'signature': None,
+        'reject_error_value': '',
+        'reject_error_span': '',
+        'status_as_found': '',
+        'status_as_left': '',
+        'next_cal_date': '',
+        'calibration_node': '',
+        'calibration_by_name': '',
+        'calibration_by_date': '',
+        'approved_by_name': '',
+        'approved_by_date': ''
+    }
     
-    select_clause = base_cols + ", " + ", ".join(optional_cols)
+    for col, default in optional_columns.items():
+        if col in existing_columns:
+            if default == 'Pending':
+                select_parts.append(f"COALESCE(c.{col}, '{default}') as {col}")
+            elif default is None:
+                select_parts.append(f"c.{col}")
+            else:
+                select_parts.append(f"COALESCE(c.{col}, '{default}') as {col}")
+        else:
+            if default is None:
+                select_parts.append(f"NULL as {col}")
+            else:
+                select_parts.append(f"'{default}' as {col}")
+    
+    # Add user fullname
+    select_parts.append("COALESCE(u.fullname, '') as input_by")
+    
+    select_clause = ", ".join(select_parts)
     
     if user_id:
         query = f"""
             SELECT {select_clause}
             FROM calibration c 
             LEFT JOIN users u ON c.user_id = u.id 
-            WHERE c.user_id=? 
-            ORDER BY c.date DESC, c.id DESC
+            WHERE c.user_id = ? 
+            ORDER BY c.id DESC
         """
         c.execute(query, (user_id,))
     else:
@@ -587,18 +613,19 @@ def get_calibrations(user_id=None):
             SELECT {select_clause}
             FROM calibration c 
             LEFT JOIN users u ON c.user_id = u.id 
-            ORDER BY c.date DESC, c.id DESC
+            ORDER BY c.id DESC
         """
         c.execute(query)
     
     rows = c.fetchall()
     conn.close()
     
-    cols = ["id", "user_id", "doc_no", "date", "name", "equipment_name", "model", "serial_no",
+    # Column names in order
+    cols = ["id", "user_id", "created_at", "doc_no", "date", "name", "equipment_name", "model", "serial_no",
             "environmental_temp", "humidity", "id_number", "function_loc", "plant",
             "description", "service_name", "location", "input", "output", "manufacturer",
             "range_in", "range_out", "interval_cal", "calibrators", "result_data",
-            "created_at", "approved_by", "approved_at", "approval_status", "signature",
+            "approved_by", "approved_at", "approval_status", "signature",
             "reject_error_value", "reject_error_span", "status_as_found", "status_as_left",
             "next_cal_date", "calibration_node", "calibration_by_name", "calibration_by_date",
             "approved_by_name", "approved_by_date", "input_by"]
@@ -1661,36 +1688,166 @@ def main():
         if user['role'] == "admin":
             st.subheader("📝 Input Calibration Report")
             
+            # Get historical data for autocomplete
+            df_history = get_calibrations()
+            
             with st.form("calibration_form", clear_on_submit=True):
                 st.markdown("#### 📋 Basic Information")
                 col1, col2 = st.columns(2)
                 
-                doc_no = col1.text_input("Doc. No", placeholder="e.g., CAL-2025-001")
+                # Doc No with history
+                doc_no_history = df_history['doc_no'].dropna().unique().tolist() if not df_history.empty else []
+                doc_no_options = [""] + sorted([x for x in doc_no_history if x], reverse=True)[:10]
+                doc_no_select = col1.selectbox("Doc. No (Select or type new)", doc_no_options, key="doc_select")
+                if doc_no_select == "" or doc_no_select is None:
+                    doc_no = col1.text_input("Or type new Doc. No", placeholder="e.g., CAL-2025-001", key="doc_text")
+                else:
+                    doc_no = doc_no_select
+                
                 date = col1.date_input("Date", value=datetime.today())
-                name = col1.text_input("Name", placeholder="Rotary Pump")
-                environmental_temp = col2.text_input("Environmental Temperature", placeholder="e.g., +25 degC")
-                humidity = col2.text_input("Humidity", placeholder="e.g., ~55%")
+                
+                # Name with history
+                name_history = df_history['name'].dropna().unique().tolist() if not df_history.empty else []
+                name_options = [""] + sorted([x for x in name_history if x], reverse=True)[:10]
+                name_select = col1.selectbox("Name (Select or type new)", name_options, key="name_select")
+                if name_select == "" or name_select is None:
+                    name = col1.text_input("Or type new Name", placeholder="Rotary Pump", key="name_text")
+                else:
+                    name = name_select
+                
+                # Environmental Temp with history
+                temp_history = df_history['environmental_temp'].dropna().unique().tolist() if not df_history.empty else []
+                temp_options = [""] + sorted([x for x in temp_history if x], reverse=True)[:5]
+                temp_select = col2.selectbox("Environmental Temperature", temp_options, key="temp_select")
+                if temp_select == "" or temp_select is None:
+                    environmental_temp = col2.text_input("Or type new", placeholder="e.g., +25 degC", key="temp_text")
+                else:
+                    environmental_temp = temp_select
+                
+                # Humidity with history
+                humid_history = df_history['humidity'].dropna().unique().tolist() if not df_history.empty else []
+                humid_options = [""] + sorted([x for x in humid_history if x], reverse=True)[:5]
+                humid_select = col2.selectbox("Humidity", humid_options, key="humid_select")
+                if humid_select == "" or humid_select is None:
+                    humidity = col2.text_input("Or type new", placeholder="e.g., ~55%", key="humid_text")
+                else:
+                    humidity = humid_select
                 
                 st.markdown("---")
                 st.markdown("#### ⚙️ Equipment Details")
                 
                 col1, col2 = st.columns(2)
                 
-                tag_id = col1.text_input("Tag ID", placeholder="e.g., PT/1")
-                function_loc = col1.text_input("Function Loc", placeholder="e.g., PM1")
-                plant = col1.text_input("Plant", placeholder="e.g., 1")
+                # Tag ID with history
+                tag_history = df_history['id_number'].dropna().unique().tolist() if not df_history.empty else []
+                tag_options = [""] + sorted([x for x in tag_history if x], reverse=True)[:10]
+                tag_select = col1.selectbox("Tag ID (Select or type new)", tag_options, key="tag_select")
+                if tag_select == "" or tag_select is None:
+                    tag_id = col1.text_input("Or type new Tag ID", placeholder="e.g., PT/1", key="tag_text")
+                else:
+                    tag_id = tag_select
+                
+                # Function Loc with history
+                func_history = df_history['function_loc'].dropna().unique().tolist() if not df_history.empty else []
+                func_options = [""] + sorted([x for x in func_history if x], reverse=True)[:10]
+                func_select = col1.selectbox("Function Loc", func_options, key="func_select")
+                if func_select == "" or func_select is None:
+                    function_loc = col1.text_input("Or type new", placeholder="e.g., PM1", key="func_text")
+                else:
+                    function_loc = func_select
+                
+                # Plant with history
+                plant_history = df_history['plant'].dropna().unique().tolist() if not df_history.empty else []
+                plant_options = [""] + sorted([x for x in plant_history if x], reverse=True)[:5]
+                plant_select = col1.selectbox("Plant", plant_options, key="plant_select")
+                if plant_select == "" or plant_select is None:
+                    plant = col1.text_input("Or type new", placeholder="e.g., 1", key="plant_text")
+                else:
+                    plant = plant_select
+                
                 description = col1.text_area("Description", placeholder="Pressure outlet col DDK - pressure 70 (DUMP 107)")
                 device_name = col1.text_area("Device Name", placeholder="Pressure transmitter - pressure Hx (DUMP 107)")
-                location = col1.text_input("Location", placeholder="e.g., Field Area A")
-                input_type = col1.text_input("Input", placeholder="e.g., Pressure")
-                output_type = col1.text_input("Output", placeholder="e.g., 4-20 mA")
                 
-                manufacturer = col2.text_input("Manufacturer", placeholder="e.g., Keller")
-                model = col2.text_input("Model", placeholder="e.g., -")
-                serial_no = col2.text_input("Serial No", placeholder="e.g., -")
-                range_in = col2.text_input("Range In", placeholder="e.g., 0 to 10 bar")
-                range_out = col2.text_input("Range Out", placeholder="e.g., 4 to 20 mA")
-                interval_cal = col2.text_input("Interval Cal", placeholder="e.g., 6 months")
+                # Location with history
+                loc_history = df_history['location'].dropna().unique().tolist() if not df_history.empty else []
+                loc_options = [""] + sorted([x for x in loc_history if x], reverse=True)[:10]
+                loc_select = col1.selectbox("Location", loc_options, key="loc_select")
+                if loc_select == "" or loc_select is None:
+                    location = col1.text_input("Or type new", placeholder="e.g., Field Area A", key="loc_text")
+                else:
+                    location = loc_select
+                
+                # Input with history
+                input_history = df_history['input'].dropna().unique().tolist() if not df_history.empty else []
+                input_options = [""] + sorted([x for x in input_history if x], reverse=True)[:5]
+                input_select = col1.selectbox("Input", input_options, key="input_select")
+                if input_select == "" or input_select is None:
+                    input_type = col1.text_input("Or type new", placeholder="e.g., Pressure", key="input_text")
+                else:
+                    input_type = input_select
+                
+                # Output with history
+                output_history = df_history['output'].dropna().unique().tolist() if not df_history.empty else []
+                output_options = [""] + sorted([x for x in output_history if x], reverse=True)[:5]
+                output_select = col1.selectbox("Output", output_options, key="output_select")
+                if output_select == "" or output_select is None:
+                    output_type = col1.text_input("Or type new", placeholder="e.g., 4-20 mA", key="output_text")
+                else:
+                    output_type = output_select
+                
+                # Manufacturer with history
+                mfg_history = df_history['manufacturer'].dropna().unique().tolist() if not df_history.empty else []
+                mfg_options = [""] + sorted([x for x in mfg_history if x], reverse=True)[:10]
+                mfg_select = col2.selectbox("Manufacturer", mfg_options, key="mfg_select")
+                if mfg_select == "" or mfg_select is None:
+                    manufacturer = col2.text_input("Or type new", placeholder="e.g., Keller", key="mfg_text")
+                else:
+                    manufacturer = mfg_select
+                
+                # Model with history
+                model_history = df_history['model'].dropna().unique().tolist() if not df_history.empty else []
+                model_options = [""] + sorted([x for x in model_history if x], reverse=True)[:10]
+                model_select = col2.selectbox("Model", model_options, key="model_select")
+                if model_select == "" or model_select is None:
+                    model = col2.text_input("Or type new", placeholder="e.g., -", key="model_text")
+                else:
+                    model = model_select
+                
+                # Serial No with history
+                sn_history = df_history['serial_no'].dropna().unique().tolist() if not df_history.empty else []
+                sn_options = [""] + sorted([x for x in sn_history if x], reverse=True)[:10]
+                sn_select = col2.selectbox("Serial No", sn_options, key="sn_select")
+                if sn_select == "" or sn_select is None:
+                    serial_no = col2.text_input("Or type new", placeholder="e.g., -", key="sn_text")
+                else:
+                    serial_no = sn_select
+                
+                # Range In with history
+                range_in_history = df_history['range_in'].dropna().unique().tolist() if not df_history.empty else []
+                range_in_options = [""] + sorted([x for x in range_in_history if x], reverse=True)[:5]
+                range_in_select = col2.selectbox("Range In", range_in_options, key="range_in_select")
+                if range_in_select == "" or range_in_select is None:
+                    range_in = col2.text_input("Or type new", placeholder="e.g., 0 to 10 bar", key="range_in_text")
+                else:
+                    range_in = range_in_select
+                
+                # Range Out with history
+                range_out_history = df_history['range_out'].dropna().unique().tolist() if not df_history.empty else []
+                range_out_options = [""] + sorted([x for x in range_out_history if x], reverse=True)[:5]
+                range_out_select = col2.selectbox("Range Out", range_out_options, key="range_out_select")
+                if range_out_select == "" or range_out_select is None:
+                    range_out = col2.text_input("Or type new", placeholder="e.g., 4 to 20 mA", key="range_out_text")
+                else:
+                    range_out = range_out_select
+                
+                # Interval Cal with history
+                interval_history = df_history['interval_cal'].dropna().unique().tolist() if not df_history.empty else []
+                interval_options = [""] + sorted([x for x in interval_history if x], reverse=True)[:5]
+                interval_select = col2.selectbox("Interval Cal", interval_options, key="interval_select")
+                if interval_select == "" or interval_select is None:
+                    interval_cal = col2.text_input("Or type new", placeholder="e.g., 6 months", key="interval_text")
+                else:
+                    interval_cal = interval_select
                 
                 st.markdown("---")
                 st.markdown("#### 🔧 Calibrators")
