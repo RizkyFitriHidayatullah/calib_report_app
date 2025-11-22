@@ -564,7 +564,7 @@ def get_calibrations(user_id=None):
                    COALESCE(c.approved_by_name, '') as approved_by_name,
                    COALESCE(c.approved_by_date, '') as approved_by_date,
                    u.fullname as input_by
-            FROM calibration c 
+            FROM calibrations c 
             LEFT JOIN users u ON c.user_id = u.id 
             ORDER BY c.date DESC, c.id DESC
         """)
