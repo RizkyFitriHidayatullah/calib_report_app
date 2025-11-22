@@ -964,7 +964,7 @@ def generate_calibration_pdf(record):
     # Date
     pdf.cell(40, 6, "Date", border=1)
     pdf.cell(60, 6, str(record.get('date', '')), border=1, fill=True)
-    pdf.cell(40, 6, "Kolej Bekasi-cuwang", border=1)
+   
     pdf.ln()
     
     # Name
