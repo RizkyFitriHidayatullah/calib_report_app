@@ -1132,7 +1132,7 @@ def generate_calibration_pdf(record):
     # Calibration Node
     pdf.cell(40, 6, "Calibration Node", border=1)
     pdf.cell(60, 6, str(record.get('calibration_node', '')), border=1, fill=True)
-    pdf.ln(5)
+    pdf.ln(9)
     
     # Calibration By & Approved By Section
     pdf.set_font("Arial", "B", 10)
