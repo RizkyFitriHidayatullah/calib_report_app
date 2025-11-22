@@ -1714,7 +1714,7 @@ def main():
                 st.markdown(f"""
                 <style>
                     .stTextInput input {{
-                        background-color: grey;
+                        background-color: white;
                     }}
                 </style>
                 """, unsafe_allow_html=True)
