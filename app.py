@@ -375,6 +375,48 @@ def save_calibration(user_id, calibration_data):
         conn = get_conn()
         c = conn.cursor()
         
+        # Add missing columns if they don't exist
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN reduce_error_value TEXT")
+        except:
+            pass
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN reduce_error_span TEXT")
+        except:
+            pass
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN status_as_found TEXT")
+        except:
+            pass
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN status_as_left TEXT")
+        except:
+            pass
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN next_cal_date TEXT")
+        except:
+            pass
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN calibration_node TEXT")
+        except:
+            pass
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN calibration_by_name TEXT")
+        except:
+            pass
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN calibration_by_date TEXT")
+        except:
+            pass
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN approved_by_name TEXT")
+        except:
+            pass
+        try:
+            c.execute("ALTER TABLE calibration ADD COLUMN approved_by_date TEXT")
+        except:
+            pass
+        
         singapore_tz = pytz.timezone('Asia/Singapore')
         now = datetime.now(singapore_tz)
         
@@ -383,9 +425,12 @@ def save_calibration(user_id, calibration_data):
                 user_id, doc_no, date, name, environmental_temp, humidity,
                 equipment_name, id_number, function_loc, plant, description, service_name,
                 input, output, manufacturer, model, serial_no, range_in, range_out,
-                pressure_cal, calibrators, result_data, created_at
+                pressure_cal, calibrators, result_data, created_at,
+                reduce_error_value, reduce_error_span, status_as_found, status_as_left,
+                next_cal_date, calibration_node, calibration_by_name, calibration_by_date,
+                approved_by_name, approved_by_date
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             user_id,
             calibration_data.get('doc_no'),
@@ -409,7 +454,17 @@ def save_calibration(user_id, calibration_data):
             calibration_data.get('pressure_cal'),
             calibration_data.get('calibrators'),
             json.dumps(calibration_data.get('result_data', [])),
-            now.isoformat()
+            now.isoformat(),
+            calibration_data.get('reduce_error_value'),
+            calibration_data.get('reduce_error_span'),
+            calibration_data.get('status_as_found'),
+            calibration_data.get('status_as_left'),
+            calibration_data.get('next_cal_date'),
+            calibration_data.get('calibration_node'),
+            calibration_data.get('calibration_by_name'),
+            calibration_data.get('calibration_by_date'),
+            calibration_data.get('approved_by_name'),
+            calibration_data.get('approved_by_date')
         ))
         
         conn.commit()
@@ -471,6 +526,16 @@ def get_calibrations(user_id=None):
                    COALESCE(c.approved_at, '') as approved_at, 
                    COALESCE(c.approval_status, 'Pending') as approval_status,
                    c.signature,
+                   COALESCE(c.reduce_error_value, '') as reduce_error_value,
+                   COALESCE(c.reduce_error_span, '') as reduce_error_span,
+                   COALESCE(c.status_as_found, '') as status_as_found,
+                   COALESCE(c.status_as_left, '') as status_as_left,
+                   COALESCE(c.next_cal_date, '') as next_cal_date,
+                   COALESCE(c.calibration_node, '') as calibration_node,
+                   COALESCE(c.calibration_by_name, '') as calibration_by_name,
+                   COALESCE(c.calibration_by_date, '') as calibration_by_date,
+                   COALESCE(c.approved_by_name, '') as approved_by_name,
+                   COALESCE(c.approved_by_date, '') as approved_by_date,
                    u.fullname as input_by
             FROM calibration c 
             LEFT JOIN users u ON c.user_id = u.id 
@@ -488,6 +553,16 @@ def get_calibrations(user_id=None):
                    COALESCE(c.approved_at, '') as approved_at, 
                    COALESCE(c.approval_status, 'Pending') as approval_status,
                    c.signature,
+                   COALESCE(c.reduce_error_value, '') as reduce_error_value,
+                   COALESCE(c.reduce_error_span, '') as reduce_error_span,
+                   COALESCE(c.status_as_found, '') as status_as_found,
+                   COALESCE(c.status_as_left, '') as status_as_left,
+                   COALESCE(c.next_cal_date, '') as next_cal_date,
+                   COALESCE(c.calibration_node, '') as calibration_node,
+                   COALESCE(c.calibration_by_name, '') as calibration_by_name,
+                   COALESCE(c.calibration_by_date, '') as calibration_by_date,
+                   COALESCE(c.approved_by_name, '') as approved_by_name,
+                   COALESCE(c.approved_by_date, '') as approved_by_date,
                    u.fullname as input_by
             FROM calibration c 
             LEFT JOIN users u ON c.user_id = u.id 
@@ -499,7 +574,10 @@ def get_calibrations(user_id=None):
             "environmental_temp", "humidity", "id_number", "function_loc", "plant",
             "description", "service_name", "input", "output", "manufacturer",
             "range_in", "range_out", "pressure_cal", "calibrators", "result_data",
-            "created_at", "approved_by", "approved_at", "approval_status", "signature", "input_by"]
+            "created_at", "approved_by", "approved_at", "approval_status", "signature",
+            "reduce_error_value", "reduce_error_span", "status_as_found", "status_as_left",
+            "next_cal_date", "calibration_node", "calibration_by_name", "calibration_by_date",
+            "approved_by_name", "approved_by_date", "input_by"]
     return pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
 def approve_checklist_batch(checklist_ids, manager_name, signature_data):
@@ -1027,11 +1105,65 @@ def generate_calibration_pdf(record):
             pdf.cell(col_widths[6], 5, str(row.get('left_error', '')), border=1, align='C', fill=True)
             pdf.ln()
     
-    # Approval Section
+    pdf.ln(3)
+    
+    # Additional Information Section
+    pdf.set_font("Arial", "", 9)
+    pdf.set_fill_color(173, 216, 230)
+    
+    # Reduce if Error
+    pdf.cell(40, 6, "Reduce if Error >", border=1)
+    pdf.cell(30, 6, str(record.get('reduce_error_value', '1.00')), border=1, fill=True)
+    pdf.cell(30, 6, str(record.get('reduce_error_span', '% of Span')), border=1, fill=True)
+    pdf.ln()
+    
+    # Status As Found / As Left
+    pdf.cell(40, 6, "Status: As Found", border=1)
+    pdf.cell(30, 6, str(record.get('status_as_found', '')), border=1, fill=True)
+    pdf.cell(40, 6, "Status: As Left", border=1)
+    pdf.cell(30, 6, str(record.get('status_as_left', '')), border=1, fill=True)
+    pdf.ln()
+    
+    # Next Calibration Date
+    pdf.cell(40, 6, "Next Calibration Date", border=1)
+    pdf.cell(60, 6, str(record.get('next_cal_date', '')), border=1, fill=True)
+    pdf.ln()
+    
+    # Calibration Node
+    pdf.cell(40, 6, "Calibration Node", border=1)
+    pdf.cell(60, 6, str(record.get('calibration_node', '')), border=1, fill=True)
+    pdf.ln(5)
+    
+    # Calibration By & Approved By Section
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(0, 6, "Calibration & Approval Details:", ln=True)
+    pdf.set_font("Arial", "", 9)
+    
+    # Calibration By
+    pdf.cell(40, 6, "Calibration By", border=1)
+    cal_by_name = str(record.get('calibration_by_name', ''))
+    cal_by_date = str(record.get('calibration_by_date', ''))
+    cal_by_text = f"{cal_by_name}" if cal_by_name else ""
+    pdf.cell(60, 6, cal_by_text, border=1, fill=True)
+    pdf.cell(20, 6, "Date:", border=1)
+    pdf.cell(40, 6, cal_by_date, border=1, fill=True)
+    pdf.ln()
+    
+    # Approved By (from additional fields, not manager approval)
+    pdf.cell(40, 6, "Approved by", border=1)
+    appr_by_name = str(record.get('approved_by_name', ''))
+    appr_by_date = str(record.get('approved_by_date', ''))
+    appr_by_text = f"{appr_by_name}" if appr_by_name else ""
+    pdf.cell(60, 6, appr_by_text, border=1, fill=True)
+    pdf.cell(20, 6, "Date:", border=1)
+    pdf.cell(40, 6, appr_by_date, border=1, fill=True)
+    pdf.ln(8)
+    
+    # Manager Approval Section (if approved via system)
     if record.get('approval_status') == 'Approved':
-        pdf.ln(10)
+        pdf.ln(5)
         pdf.set_font("Arial", "B", 10)
-        pdf.cell(0, 6, "APPROVAL SECTION", ln=True, align='C')
+        pdf.cell(0, 6, "MANAGER APPROVAL SECTION", ln=True, align='C')
         pdf.ln(3)
         
         approved_by = str(record.get('approved_by', 'N/A'))
@@ -1047,7 +1179,7 @@ def generate_calibration_pdf(record):
             approved_at = 'N/A'
         
         pdf.set_font("Arial", "", 9)
-        pdf.cell(95, 8, f"Approved by: {approved_by}", border=1, align='L')
+        pdf.cell(95, 8, f"Reviewed & Approved by: {approved_by}", border=1, align='L')
         pdf.cell(95, 8, f"Date: {approved_at}", border=1, align='L')
         pdf.ln(10)
         
@@ -1611,6 +1743,36 @@ def main():
                     })
                 
                 st.markdown("---")
+                st.markdown("#### 📊 Additional Information")
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    reduce_error_value = st.text_input("Reduce if Error >", placeholder="e.g., 1.00", value="1.00")
+                    status_as_found = st.selectbox("Status: As Found", ["", "Pass", "Fail", "Adjust"])
+                
+                with col2:
+                    reduce_error_span = st.text_input("% of Span", placeholder="e.g., % of Span")
+                    status_as_left = st.selectbox("Status: As Left", ["", "Pass", "Fail", "Adjust"])
+                
+                with col3:
+                    next_cal_date = st.date_input("Next Calibration Date", value=None)
+                    calibration_node = st.text_input("Calibration Node", placeholder="e.g., Node information")
+                
+                st.markdown("---")
+                st.markdown("#### ✍️ Calibration & Approval Details")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    calibration_by_name = st.text_input("Calibration By (Name)", placeholder=user['fullname'], value=user['fullname'])
+                    calibration_by_date = st.date_input("Calibration Date", value=datetime.today())
+                
+                with col2:
+                    approved_by_name = st.text_input("Approved by (Name)", placeholder="e.g., Farid Vitra Baskara")
+                    approved_by_date = st.date_input("Approved Date", value=None)
+                
+                st.markdown("---")
                 
                 # Submit button
                 if st.form_submit_button("💾 Simpan Calibration Report", use_container_width=True):
@@ -1635,7 +1797,17 @@ def main():
                         'range_out': range_out,
                         'pressure_cal': pressure_cal,
                         'calibrators': calibrators,
-                        'result_data': result_data
+                        'result_data': result_data,
+                        'reduce_error_value': reduce_error_value,
+                        'reduce_error_span': reduce_error_span,
+                        'status_as_found': status_as_found,
+                        'status_as_left': status_as_left,
+                        'next_cal_date': next_cal_date.strftime("%Y-%m-%d") if next_cal_date else '',
+                        'calibration_node': calibration_node,
+                        'calibration_by_name': calibration_by_name,
+                        'calibration_by_date': calibration_by_date.strftime("%Y-%m-%d") if hasattr(calibration_by_date, 'strftime') else str(calibration_by_date),
+                        'approved_by_name': approved_by_name,
+                        'approved_by_date': approved_by_date.strftime("%Y-%m-%d") if approved_by_date else ''
                     }
                     
                     if save_calibration(user['id'], calibration_data):
