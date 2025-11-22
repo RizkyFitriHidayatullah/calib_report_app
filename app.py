@@ -973,7 +973,7 @@ def generate_calibration_pdf(record):
     pdf.ln()
     
     # Environmental Temp
-    pdf.cell(60, 6, "Environmental Temperature", border=1)
+    pdf.cell(50, 6, "Environmental Temperature", border=1)
     pdf.cell(60, 6, str(record.get('environmental_temp', '')), border=1, fill=True)
     pdf.ln()
     
