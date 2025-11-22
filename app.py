@@ -1903,12 +1903,12 @@ def main():
                     
                     with col_af:
                         if idx == 0:
-                            st.markdown("**A.s Found (mA)**")
+                            st.markdown("**A.s Found**")
                         st.number_input(f"af_{idx}", value=0.0, format="%.2f", label_visibility="collapsed", key=f"as_found_{idx}")
                     
                     with col_al:
                         if idx == 0:
-                            st.markdown("**A.s Left (mA)**")
+                            st.markdown("**A.s Left**")
                         st.number_input(f"al_{idx}", value=0.0, format="%.2f", label_visibility="collapsed", key=f"as_left_{idx}")
                     
                     with col_fe:
