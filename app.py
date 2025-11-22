@@ -985,7 +985,7 @@ def generate_calibration_pdf(record):
     # Name of Equipment Section
     pdf.set_font("Arial", "B", 10)
     pdf.cell(0, 6, "Name of Equipment:", ln=True)
-    pdf.set_font("Arial", "", 12)
+    pdf.set_font("Arial", "", 9)
     
     # Equipment details in table
     pdf.cell(40, 6, "Tag ID", border=1)
@@ -1026,7 +1026,7 @@ def generate_calibration_pdf(record):
     
     pdf.cell(40, 6, "Output", border=1)
     pdf.cell(50, 6, str(record.get('output', '')), border=1, fill=True)
-    pdf.ln(5)
+    pdf.ln(9)
     
     # Calibrators Section
     pdf.set_font("Arial", "B", 10)
