@@ -1111,8 +1111,8 @@ def generate_calibration_pdf(record):
     pdf.set_font("Arial", "", 9)
     pdf.set_fill_color(173, 216, 230)
     
-    # Reduce if Error
-    pdf.cell(40, 6, "Reduce if Error >", border=1)
+    # Reject if Error
+    pdf.cell(40, 6, "Reject if Error >", border=1)
     pdf.cell(30, 6, str(record.get('reduce_error_value', '1.00')), border=1, fill=True)
     pdf.cell(30, 6, str(record.get('reduce_error_span', '% of Span')), border=1, fill=True)
     pdf.ln()
@@ -1748,7 +1748,7 @@ def main():
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    reduce_error_value = st.text_input("Reduce if Error >", placeholder="e.g., 1.00", value="1.00")
+                    reduce_error_value = st.text_input("Reject if Error >", placeholder="e.g., 1.00", value="1.00")
                     status_as_found = st.selectbox("Status: As Found", ["", "Pass", "Fail", "Adjust"])
                 
                 with col2:
