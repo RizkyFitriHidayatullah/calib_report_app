@@ -1170,9 +1170,12 @@ def generate_calibration_pdf(record):
     pdf.cell(30, 6, str(record.get('reject_error_span', '% of Span')), border=1, fill=True)
     pdf.ln()
     
-    # Status As Found / As Left
+    # Status As Found
     pdf.cell(40, 6, "Status: As Found", border=1)
     pdf.cell(30, 6, str(record.get('status_as_found', '')), border=1, fill=True)
+    pdf.ln()
+
+    # Status As Left
     pdf.cell(40, 6, "Status: As Left", border=1)
     pdf.cell(30, 6, str(record.get('status_as_left', '')), border=1, fill=True)
     pdf.ln()
