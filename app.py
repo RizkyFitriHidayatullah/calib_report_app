@@ -1037,47 +1037,47 @@ def generate_calibration_pdf(record):
     pdf.set_font("Arial", "", 9)
     
     # Equipment details in table
-    pdf.cell(40, 6, "Tag ID", border=1)
+    pdf.cell(42, 6, "Tag ID", border=1)
     pdf.cell(50, 6, str(record.get('id_number', '')), border=1, fill=True)
     pdf.cell(40, 6, "Manufacturer", border=1)
     pdf.cell(60, 6, str(record.get('manufacturer', '')), border=1, fill=True)
     pdf.ln()
     
-    pdf.cell(40, 6, "Function Loc", border=1)
+    pdf.cell(42, 6, "Function Loc", border=1)
     pdf.cell(50, 6, str(record.get('function_loc', '')), border=1, fill=True)
     pdf.cell(40, 6, "Model", border=1)
     pdf.cell(60, 6, str(record.get('model', '')), border=1, fill=True)
     pdf.ln()
     
-    pdf.cell(40, 6, "Plant", border=1)
+    pdf.cell(42, 6, "Plant", border=1)
     pdf.cell(50, 6, str(record.get('plant', '')), border=1, fill=True)
     pdf.cell(40, 6, "Serial No", border=1)
     pdf.cell(60, 6, str(record.get('serial_no', '')), border=1, fill=True)
     pdf.ln()
     
-    pdf.cell(40, 6, "Description", border=1)
+    pdf.cell(42, 6, "Description", border=1)
     pdf.cell(50, 6, str(record.get('description', ''))[:30], border=1, fill=True)
     pdf.cell(40, 6, "Range In", border=1)
     pdf.cell(60, 6, str(record.get('range_in', '')), border=1, fill=True)
     pdf.ln()
     
-    pdf.cell(40, 6, "Device Name", border=1)
+    pdf.cell(42, 6, "Device Name", border=1)
     pdf.cell(50, 6, str(record.get('service_name', ''))[:30], border=1, fill=True)
     pdf.cell(40, 6, "Range Out", border=1)
     pdf.cell(60, 6, str(record.get('range_out', '')), border=1, fill=True)
     pdf.ln()
     
-    pdf.cell(40, 6, "Location", border=1)
+    pdf.cell(42, 6, "Location", border=1)
     pdf.cell(50, 6, str(record.get('location', '')), border=1, fill=True)
     pdf.cell(40, 6, "Interval Cal", border=1)
     pdf.cell(60, 6, str(record.get('interval_cal', '')), border=1, fill=True)
     pdf.ln()
     
-    pdf.cell(40, 6, "Input", border=1)
+    pdf.cell(42, 6, "Input", border=1)
     pdf.cell(50, 6, str(record.get('input', '')), border=1, fill=True)
     pdf.ln()
     
-    pdf.cell(40, 6, "Output", border=1)
+    pdf.cell(42, 6, "Output", border=1)
     pdf.cell(50, 6, str(record.get('output', '')), border=1, fill=True)
     pdf.ln(5)
     
