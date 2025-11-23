@@ -1165,8 +1165,8 @@ def generate_calibration_pdf(record):
     pdf.set_fill_color(173, 216, 230)
     
     # Reject if Error
-    pdf.cell(40, 6, "Reject if Error >", border=1)
-    # pdf.cell(30, 6, str(record.get('reject_error_value', '1.00')), border=1, fill=True)
+    #pdf.cell(40, 6, "Reject if Error >", border=1)
+    pdf.cell(30, 6, str(record.get('reject_error_value', '1.00')), border=1, fill=True)
     pdf.cell(30, 6, str(record.get('reject_error_span', '% of Span')), border=1, fill=True)
     pdf.ln()
     
