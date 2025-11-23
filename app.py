@@ -1007,17 +1007,17 @@ def generate_calibration_pdf(record):
     pdf.set_fill_color(173, 216, 230)  # Light blue
     
     # Doc No
-    pdf.cell(40, 6, "Doc. No", border=1)
+    pdf.cell(42, 6, "Doc. No", border=1)
     pdf.cell(60, 6, str(record.get('doc_no', '')), border=1, fill=True)
     pdf.ln()
     
     # Date
-    pdf.cell(40, 6, "Date", border=1)
+    pdf.cell(42, 6, "Date", border=1)
     pdf.cell(60, 6, str(record.get('date', '')), border=1, fill=True)
     pdf.ln()
     
     # Name
-    pdf.cell(40, 6, "Name", border=1)
+    pdf.cell(42, 6, "Name", border=1)
     pdf.cell(60, 6, str(record.get('name', '')), border=1, fill=True)
     pdf.ln()
     
@@ -1027,7 +1027,7 @@ def generate_calibration_pdf(record):
     pdf.ln()
     
     # Humidity
-    pdf.cell(40, 6, "Humidity", border=1)
+    pdf.cell(42, 6, "Humidity", border=1)
     pdf.cell(60, 6, str(record.get('humidity', '')), border=1, fill=True)
     pdf.ln(5)
     
