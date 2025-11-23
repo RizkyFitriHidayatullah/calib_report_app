@@ -1186,7 +1186,7 @@ def generate_calibration_pdf(record):
     pdf.ln()
     
     # Calibration Node
-    pdf.cell(40, 6, "Calibration Node", border=1)
+    pdf.cell(40, 6, "Calibration Note", border=1)
     pdf.cell(60, 6, str(record.get('calibration_node', '')), border=1, fill=True)
     pdf.ln(5)
     
